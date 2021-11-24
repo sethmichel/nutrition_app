@@ -12,11 +12,41 @@ from kivy.uix.modalview import ModalView
 from kivy.uix.popup import Popup
 from kivy.properties import StringProperty
 
-import smoothie_sql
+import psycopg2
+from config import config
+
+import sqlCommands
 
 
-# thiamin = b1
-# riboflaven = b2
+# WARNING: this repo uses a database.ini file to connect to the db, this isn't uploaded to github for security reasons so make your own connection
+
+
+# connects to the db and prints pgsql version
+conn = None
+
+try:
+    params = config() # this is the config library
+    conn = psycopg2.connect("dbname='nutritionDB' user='postgres' host='localhost' password='1234'")
+
+    # connect to the PostgreSQL server
+    print('\nConnecting to the PostgreSQL database...')
+    conn = psycopg2.connect(**params)
+
+    cur = conn.cursor()
+    
+    # execute a statement
+    print('PostgreSQL database version: ')
+    cur.execute('SELECT version()')
+
+    # display the PostgreSQL db server version
+    db_version = cur.fetchone()
+    print(db_version)
+
+    sqlCommands.create_table(cur, conn)
+
+except (Exception, psycopg2.DatabaseError) as error:
+    print("error ", error)
+
 
 # all graphics/widgets: grids, btns, labels for all data
 class Main_Page(GridLayout):
@@ -26,16 +56,14 @@ class Main_Page(GridLayout):
         self.cols = 4
 
         # make btns
-        new_btn = self.make_btn("Make New Smoothie")
-        saved_btn = self.make_btn("Saved Recipeis")
-        read_btn = self.make_btn("Read About Ingrediants")
-        ingredient_btn = self.make_btn("Add Ingrediant Data")
+        new_btn = self.MakeBtn("Make New Smoothie")
+        saved_btn = self.MakeBtn("Saved Recipeis")
+        read_btn = self.MakeBtn("Read About Ingrediants")
+        ingredient_btn = self.MakeBtn("Add Ingrediant Data")
         
         # bind btns
-        new_btn.bind(on_release = self.add_ingrediant_model)
-        saved_btn.bind(on_release = self.add_ingrediant_model)
-        read_btn.bind(on_release = self.add_ingrediant_model)
-        ingredient_btn.bind(on_release = self.add_ingrediant_model)
+        read_btn.bind(on_release = self.ReadIngredients)
+        ingredient_btn.bind(on_release = self.AddIngredientModel)
 
         # display btns
         self.add_widget(new_btn)
@@ -43,118 +71,144 @@ class Main_Page(GridLayout):
         self.add_widget(read_btn)
         self.add_widget(ingredient_btn)
 
-    
-    # EVENT: user clicked a btn
-    def add_ingrediant_model(self, instance):
-        # make scrollable gridlayout
-        scroll = ScrollView(do_scroll_x = False, do_scroll_y = True)   # a scroll view will contain the stock gridlayout
-        grid = GridLayout(cols = 2, rows = 66, size_hint_y = None)      # the gridlayout
-        grid.bind(minimum_height = grid.setter("height"))   # makes the gridlayout scrollabel via the scrollview
-
-        # make the 66 labels and txt inputs
-        for i in range(0, 66):
-            lab = Label(text = food())
-
 
     # called at app start by init()
-    # makes & returns btns
-    # pm: words = text to write
-    def make_btn(self, words):
+    def MakeBtn(self, words):
         return Button(text = words, size_hint_y = None)
+
+
+    # EVENT: user clicked the add an ingredients btn
+    def AddIngredientModel(self, instance):
+        mainview = ModalView(size_hint = (0.75, 0.75))
+        layout = BoxLayout(orientation = "vertical")
+        layout.add_widget(Label(text = "Add Ingrediant Data", size_hint_y = 0.2))
+        enterBtn = Button(text = "Submit", size_hint_y = 0.1)
         
+        # make scrollable gridlayout
+        grid = GridLayout(rows = 50, cols = 7, size_hint_y = 0.7)
+        grid.bind(minimum_height = grid.setter("height"))               # makes the gridlayout scrollabel via the scrollview
+        scroll = ScrollView(do_scroll_x = False, do_scroll_y = True)    # a scroll view will contain the gridlayout
+        
+        ingredientList = ["Food", 'Calories', 'Protein (g)', 'Carbs (g)', 'Sugar (g)', 'Fiber (g)', 'Total Fat (g)']
+        for i in ingredientList:
+            grid.add_widget(Label(text = i))
+        for i in range(0, 7):
+            grid.add_widget(TextInput())
 
-# 25 # ?? means '+', 50 means '++'
-def nutrients_db(food):
-    if (food.id == "blueberries"):
-        food.cals = 57
-        food.protien = 0.7
-        food.carbs = 14.5
-        food.sugar = 10
-        food.fiber = 2.4
-        food.fat = 0.3
-        food.vitc = 25 # ??
-        food.vitk1 = 25 # ??
-        food.manganese = 25 # ??
-        food.anthocyanin = '+'
-        food.quercetin = '+'
-        food.myricetin = '+'
-        return
-
-    elif (food.id == "strawberries"):
-        food.cals = 32
-        food.sugar = 4.9
-        food.protien = 0.7
-        food.carbs = 7.7
-        food.fiber = 2
-        food.fat = 0.3
-        food.vitc = 25 # ??
-        food.vitb9 = 25 # ??
-        food.potassium = 25 # ??
-        food.manganese = 25 # ??
-        food.pelargonidin = '+'
-        food.procyanidins = '+'
-        food.ellagitannins = '+'
-        food.ellagic_acid = '+'
-        return
-
-    elif (food.id == "blackberries"):
-        food.cals = 62
-        food.sugar = 7
-        food.protien = 2 
-        food.carbs = 14
-        food.fiber = 7.6
-        food.fat = 0.7
-        food.vitc = 50 # ??
-        food.vitk1 = 50 # ??
-        food.manganese = 50 # ?? 
-        food.potassium = 25 # ??
-        food.anthocyanin = '+'
-        food.procyanidins = '+'
-        food.ellagitannins = '+'
-        food.ellagic_acid = '+' 
-        return
-
-    elif (food.id == "raspberries"):
-        food.cals = 64
-        food.sugar = 7
-        food.protien = 1.5 
-        food.carbs = 14.7
-        food.fiber = 8
-        food.fat = 0.8
-        food.vitc = 54
-        food.vitk = 12
-        food.vite = 5
-        food.vitb4 = 6
-        food.manganese = 41
-        food.iron = 5
-        food.phosphorus = 4
-        food.potassium = 5
-        food.copper = 6
-        food.anthocyanin = '+'
-        food.quercetin = '+'
-        food.ellagic_acid = '+'
-        return
-
-    elif (food.id == "protein_powder"):
-        food.cals = 200
-        food.cholesterol = 100
-        food.sugar = 3
-        food.protien = 30 
-        food.calcium = 160
-        food.fiber = 1
-        food.fat = 4
-        food.satfat = 1.5
-        food.sodium = 190
-        food.potassium = 340
-        food.creatine = 1.5
-        food.taurine = 1.5
-        food.L_glutamine = 1.5
-        return
-
-    else: 
-        print("ERROR: UNKNOWN UNGREDIANT, EVERYTHNG IS RUINED OH MOI GAWD")
+        enterBtn.fbind("on_release", sqlCommands.sendIngredientData, conn, cur)
+        scroll.add_widget(grid)
+        layout.add_widget(scroll)
+        layout.add_widget(enterBtn)
+        mainview.add_widget(layout)
+        mainview.open()
 
 
+    # EVENT: user clicked the read about ingredients btn
+    def ReadIngredients(self, instance):
+        mainview = ModalView(size_hint = (0.75, 0.75))
+        layout = BoxLayout(orientation = "vertical")
+
+        # search bar
+        searchGrid = GridLayout(rows = 1, cols = 2, size_hint_y = 0.1)
+        searchGrid.add_widget(TextInput(hint_text = "ingredient...", size_hint_x = 0.8))
+        searchGrid.add_widget(Button(text = "Search", size_hint_x = 0.2))
+        searchGrid.children[0].bind(on_release = self.SearchIngredient)
+
+        layout.add_widget(searchGrid)
+        layout.add_widget(self.ReadIngredientsUpperGrid())
+        layout.add_widget(self.ReadIngredientsLowerGrid())
+
+        mainview.add_widget(layout)
+        mainview.open()
+
+
+    # default is display all
+    # for all, food is headers, ingredients is rows. Tap a col and it'll highlight that whole col
+    # > for easier scrolling
+    def ReadIngredientsLowerGrid(self):
+        # make scrollable gridlayout
+        grid = GridLayout(cols = 7, size_hint_y = 0.7)
+        grid.bind(minimum_height = grid.setter("height"))
+        scroll = ScrollView(do_scroll_x = False, do_scroll_y = True)
+
+        # get list of foods as headers
+        # get list of ingredients as cols
+        # insert data
+
+        return scroll
+
+
+    # returns the uppder grid of btns for the read ingredients menu
+    def ReadIngredientsUpperGrid(self):
+        upperGrid = GridLayout(rows = 1, cols = 5, size_hint_y = 0.2)
+
+        basicInfoBtn = Button(text = "Basic Info")
+        antioxidantsBtn = Button(text = "Antioxidants")
+        vitaminMineralsBtn = Button(text = "vitaminMinerals")
+        miscInfoBtn = Button(text = "Misc Info")
+        allBtn = Button(text = "All")
+
+        basicInfoBtn.bind(on_release = self.colorChanger)
+        antioxidantsBtn.bind(on_release = self.colorChanger)
+        vitaminMineralsBtn.bind(on_release = self.colorChanger)
+        miscInfoBtn.bind(on_release = self.colorChanger)
+        allBtn.bind(on_release = self.colorChanger)
+
+        upperGrid.add_widget(basicInfoBtn)
+        upperGrid.add_widget(antioxidantsBtn)
+        upperGrid.add_widget(vitaminMineralsBtn)
+        upperGrid.add_widget(miscInfoBtn)
+        upperGrid.add_widget(allBtn)
+
+        return upperGrid
+    
+    
+    def SearchIngredient(self, instance):
+        pass
+
+    def colorChanger(self, instance):
+        for btn in instance.parent.children:
+            if (btn.background_color == [0, 255, 255, 0.4]):
+                btn.background_color = [1, 1, 1, 1]
+                break
+
+        instance.background_color = [0, 255, 255, 0.4]
+
+
+
+    def bulkUpload(self):
+       pass
+
+
+
+        
+class myApp(App):
+    def build(self):
+        return Main_Page()
+
+
+if __name__ == "__main__":
+    myApp().run()
+
+    # close the communication with the PostgreSQL
+    if conn is not None:
+        conn.close()
+        print('\nDatabase connection closed')
+
+
+
+
+
+
+
+
+
+
+
+
+
+# thiamin = b1
+# riboflaven = b2
 def smoothie_adder(food, smoothie):
     smoothie.cals += food.cals
     smoothie.sugar += food.sugar
@@ -264,13 +318,7 @@ def main():
 
 
         
-class myApp(App):
-    def build(self):
-        return Main_Page()
 
-
-if __name__ == "__main__":
-    myApp().run()
 
 
 

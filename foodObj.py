@@ -1,8 +1,6 @@
-class ingrediants:
-    def __init__(self, passed_id):
-        self.id = passed_id
-
-        cals = 0
+class food:
+    def __init__(self):
+        calories = 0
         sugar = 0
         added_sugar = 0
         fiber = 0

@@ -17,4 +17,6 @@
 # Support for Project snippet scope
 !.vscode/*.code-snippets
 
+database.ini
 nutrition_research.docx
+notes.txt

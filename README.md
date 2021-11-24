@@ -1,0 +1,1 @@
+Purpose of database.ini: I can change the PostgreSQL connection parameters when I move the code to the production environment without changing the code
