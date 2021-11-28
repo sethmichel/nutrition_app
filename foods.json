@@ -1,0 +1,89 @@
+{
+    "blueberries":
+        {
+            "cals": 57,
+            "protien": 0.7,
+            "carbs": 14.5,
+            "sugar": 10,
+            "fiber": 2.4,
+            "fat": 0.3,
+            "vitc": 25,
+            "vitk1": 25,
+            "manganese": 25,
+            "anthocyanin": "+",
+            "quercetin": "+",
+            "myricetin": "+"
+        },
+    "strawberries":
+        {
+            "cals": 32,
+            "sugar": 4.9,
+            "protien": 0.7,
+            "carbs": 7.7,
+            "fiber": 2,
+            "fat": 0.3,
+            "vitc": 25,
+            "vitb9": 25,
+            "potassium": 25,
+            "manganese": 25,
+            "pelargonidin": "+",
+            "procyanidins": "+",
+            "ellagitannins": "+",
+            "ellagic_acid": "+"
+        },
+    "blackberries":
+        {
+            "cals": 62,
+            "sugar": 7,
+            "protien": 2, 
+            "carbs": 14,
+            "fiber": 7.6,
+            "fat": 0.7,
+            "vitc": 50,
+            "vitk1": 50,
+            "manganese": 50, 
+            "potassium": 25,
+            "anthocyanin": "+",
+            "procyanidins": "+",
+            "ellagitannins": "+",
+            "ellagic_acid": "+"
+        },
+    "raspberries":
+        {
+            "cals": 64,
+            "sugar": 7,
+            "protien": 1.5,
+            "carbs": 14.7,
+            "fiber": 8,
+            "fat": 0.8,
+            "vitc": 54,
+            "vitk": 12,
+            "vite": 5,
+            "vitb4": 6,
+            "manganese": 41,
+            "iron": 5,
+            "phosphorus": 4,
+            "potassium": 5,
+            "copper": 6,
+            "anthocyanin": "+",
+            "quercetin": "+",
+            "ellagic_acid": "+"
+        },
+    "protein_powder":
+        {
+            "cals": 200,
+            "cholesterol": 100,
+            "sugar": 3,
+            "protien": 30 ,
+            "calcium": 160,
+            "fiber": 1,
+            "fat": 4,
+            "satfat": 1.5,
+            "sodium": 190,
+            "potassium": 340,
+            "creatine": 1.5,
+            "taurine": 1.5,
+            "L_glutamine": 1.5
+        }
+
+}

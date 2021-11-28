@@ -11,12 +11,48 @@ from kivy.core.window import Window
 from kivy.uix.modalview import ModalView
 from kivy.uix.popup import Popup
 from kivy.properties import StringProperty
+from kivy.core.window import Window
+from kivy.uix.screenmanager import ScreenManager, Screen
 
-import smoothie_sql
+import random
+import psycopg2
+from config import config
+
+import sqlCommands
 
 
-# thiamin = b1
-# riboflaven = b2
+# WARNING: this repo uses a database.ini file to connect to the db, this isn't uploaded to github for security reasons so make your own connection
+
+
+# connects to the db and prints pgsql version
+conn = None
+tableNames = []
+originalSchema = []
+editedSchema = []
+
+try:
+    params = config() # this is the config library
+    conn = psycopg2.connect("dbname='nutritionDB' user='postgres' host='localhost' password='1234'")
+
+    # connect to the PostgreSQL server
+    print('\nConnecting to the PostgreSQL database...')
+    conn = psycopg2.connect(**params)
+
+    cur = conn.cursor()
+    
+    # execute a statement
+    print('PostgreSQL database version: ')
+    cur.execute('SELECT version()')
+
+    # display the PostgreSQL db server version
+    db_version = cur.fetchone()
+    print(db_version)
+
+    sqlCommands.CreateTables(cur, conn)
+
+except (Exception, psycopg2.DatabaseError) as error:
+    print("error ", error)
+
 
 # all graphics/widgets: grids, btns, labels for all data
 class Main_Page(GridLayout):
@@ -26,16 +62,14 @@ class Main_Page(GridLayout):
         self.cols = 4
 
         # make btns
-        new_btn = self.make_btn("Make New Smoothie")
-        saved_btn = self.make_btn("Saved Recipeis")
-        read_btn = self.make_btn("Read About Ingrediants")
-        ingredient_btn = self.make_btn("Add Ingrediant Data")
+        new_btn = Button(text = "Make New Smoothie", size_hint_y = None)
+        saved_btn = Button(text = "Saved Recipeis", size_hint_y = None)
+        read_btn = Button(text = "Read About Ingrediants", size_hint_y = None)
+        ingredient_btn = Button(text = "Add Ingrediant Data", size_hint_y = None)
         
         # bind btns
-        new_btn.bind(on_release = self.add_ingrediant_model)
-        saved_btn.bind(on_release = self.add_ingrediant_model)
-        read_btn.bind(on_release = self.add_ingrediant_model)
-        ingredient_btn.bind(on_release = self.add_ingrediant_model)
+        read_btn.bind(on_release = self.ReadIngredients)
+        ingredient_btn.bind(on_release = self.AddIngredient)
 
         # display btns
         self.add_widget(new_btn)
@@ -43,118 +77,260 @@ class Main_Page(GridLayout):
         self.add_widget(read_btn)
         self.add_widget(ingredient_btn)
 
-    
-    # EVENT: user clicked a btn
-    def add_ingrediant_model(self, instance):
+
+    # EVENT: user clicked the add an ingredients btn
+    def AddIngredient(self, instance):
+        originalSchema = []
+
+        tableNames = sqlCommands.GetTableNames(cur, conn)
+
+        if (originalSchema == []):
+            self.GetSchemas()
+
+        sm = ScreenManager()
+        mainView = ModalView(size_hint = (0.9, 0.9))
+        names = ["Basic Info", "Vitamins And Minerals", "Antioxidants", "Misc Nutrients", "Misc Info"]
+
+        # make the screens
+        for i in range(0, len(names)):
+            screen = Screen(name = names[i])
+            
+            layout = BoxLayout(orientation = "vertical")
+            grid = GridLayout(cols = 7, size_hint_y = 0.8)
+
+            # load grids (probably better as a boxlayout so it's dynamic sizes tbh)
+            for j in range(0, len(editedSchema[i])):
+                grid.add_widget(Label(text = editedSchema[i][j], size_hint_y = 0.2))
+            for j in range(0, len(editedSchema[i])):
+                grid.add_widget(TextInput(size_hint_y = 0.2))
+
+            btnLayout = GridLayout(rows = 1, cols = 3, size_hint_y = 0.1)            
+            backBtn = Button(text = "Back", size_hint_x = 0.1, ids = {"name": "back"})
+            testBtn = Button(text = "test", size_hint_x = 0.1, ids = {"name": "test"})
+            backBtn.fbind("on_release", self.NextBtnEvent, sm)
+            testBtn.fbind("on_release", self.MakeTestData, grid)
+            btnLayout.add_widget(backBtn)
+            btnLayout.add_widget(testBtn)
+
+            if (i < len(names) - 1):
+                nextBtn = Button(text = "Next", size_hint_x = 0.8, ids = {"name": "next"})
+                nextBtn.fbind("on_release", self.NextBtnEvent, sm)
+                btnLayout.add_widget(nextBtn)
+            else:
+                submitBtn = Button(text = "Submit", size_hint_x = 0.7, ids = {"name": "submit"})
+                submitBtn.fbind("on_release", sqlCommands.SendIngredientData, conn, cur, originalSchema, tableNames, sm)
+                btnLayout.add_widget(submitBtn)
+            
+            layout.add_widget(Label(text = names[i], size_hint_y = 0.1))
+            layout.add_widget(grid)
+            layout.add_widget(btnLayout)
+            screen.add_widget(layout)
+            sm.add_widget(screen)
+
+        mainView.add_widget(sm)
+        mainView.open()
+
+    # send data to sql, change ui
+    # sm is screen manager
+    def NextBtnEvent(self, sm, instance):
+        # header label, and change grids
+        if (sm.current == "Basic Info"):
+            sm.transition.direction = 'left'
+            sm.current = "Vitamins And Minerals"    
+
+        elif (sm.current == "Vitamins And Minerals"):
+            if (instance.ids["name"] == "next"):
+                sm.transition.direction = 'left'
+                sm.current = "Antioxidants"
+            else:
+                sm.transition.direction = 'right'
+                sm.current = "Basic Info"
+
+        elif (sm.current == "Antioxidants"):
+            if (instance.ids["name"] == "next"):
+                sm.transition.direction = 'left'
+                sm.current = "Misc Nutrients"
+            else:
+                sm.transition.direction = 'right'
+                sm.current = "Vitamins And Minerals"
+            
+        elif (sm.current == "Misc Nutrients"):
+            if (instance.ids["name"] == "next"): 
+                sm.transition.direction = 'left'
+                sm.current = "Misc Info"
+            else: 
+                sm.transition.direction = 'right'
+                sm.current = "Antioxidants"
+        else:
+            sm.transition.direction = 'right'
+            sm.current = "Misc Nutrients"
+                
+
+
+
+
+
+
+
+
+    # EVENT: user clicked the read about ingredients btn
+    def ReadIngredients(self, instance):
+        mainview = ModalView(size_hint = (0.75, 0.75))
+        layout = BoxLayout(orientation = "vertical")
+
+        # search bar grid
+        searchGrid = GridLayout(rows = 1, cols = 2, size_hint_y = 0.1)
+        searchGrid.add_widget(TextInput(hint_text = "ingredient...", size_hint_x = 0.8))
+        searchGrid.add_widget(Button(text = "Search", size_hint_x = 0.2))
+        searchGrid.children[0].bind(on_release = self.SearchIngredient)
+
+        # upper grid of buttons
+        upperGrid = GridLayout(rows = 1, cols = 5, size_hint_y = 0.2)
+
+        basicInfoBtn = Button(text = "Basic Info")
+        antioxidantsBtn = Button(text = "Antioxidants")
+        vitaminMineralsBtn = Button(text = "vitaminMinerals")
+        miscInfoBtn = Button(text = "Misc Info")
+        allBtn = Button(text = "All")
+
+        basicInfoBtn.bind(on_release = self.colorChanger)
+        antioxidantsBtn.bind(on_release = self.colorChanger)
+        vitaminMineralsBtn.bind(on_release = self.colorChanger)
+        miscInfoBtn.bind(on_release = self.colorChanger)
+        allBtn.bind(on_release = self.colorChanger)
+
+        upperGrid.add_widget(basicInfoBtn)
+        upperGrid.add_widget(antioxidantsBtn)
+        upperGrid.add_widget(vitaminMineralsBtn)
+        upperGrid.add_widget(miscInfoBtn)
+        upperGrid.add_widget(allBtn)
+
+        # combine stuff
+        layout.add_widget(searchGrid)
+        layout.add_widget(upperGrid)
+        layout.add_widget(self.HelperReadIngredientsLowerGrid())
+
+        mainview.add_widget(layout)
+        mainview.open()
+
+
+    # default is display basic info
+    # nutrient is row headers, the other cols is the info. Click it to open a popup with the info
+    def ReadIngredientsLowerGrid(self):
         # make scrollable gridlayout
-        scroll = ScrollView(do_scroll_x = False, do_scroll_y = True)   # a scroll view will contain the stock gridlayout
-        grid = GridLayout(cols = 2, rows = 66, size_hint_y = None)      # the gridlayout
-        grid.bind(minimum_height = grid.setter("height"))   # makes the gridlayout scrollabel via the scrollview
+        grid = GridLayout(cols = 2, size_hint_y = 0.7)
+        grid.bind(minimum_height = grid.setter("height"))
+        scroll = ScrollView(do_scroll_x = False, do_scroll_y = True)
 
-        # make the 66 labels and txt inputs
-        for i in range(0, 66):
-            lab = Label(text = food())
+        # get list of foods as headers
+        for i in editedSchema[0][1:]:
+            grid.add_widget(Label(text = i, size_hint_x = 0.2))
+            grid.add_widget(Label())
+
+        # get list of ingredients as cols
+        # insert data
+
+        # I need anohter table of nutrient info, just 2 cols, every nutrient from each tabel. Need that first
 
 
-    # called at app start by init()
-    # makes & returns btns
-    # pm: words = text to write
-    def make_btn(self, words):
-        return Button(text = words, size_hint_y = None)
+        scroll.add_widget(grid)
+
+        return scroll
+
+
+    
+    
+    def SearchIngredient(self, instance):
+        pass
+
+
+
+
+
+    def bulkUpload(self):
+       pass
+
+
+
+
+    # these are helpers ------------------------------------------------------------------------------
+
+    # add ingredient helper
+    def OrganizeList(self, tableSchema):
+        newList = []
+
+        for i in tableSchema:
+            newList.append(i[0])
+            newList[-1] = newList[-1].replace("_", " ")
+            if (newList[-1] != "name" and newList[-1] != "calories" and newList[-1] != "info"):
+                if (newList[-1] == "cholesterol" or newList[-1] == "sodium"):
+                    newList[-1] = newList[-1] + ' mg'
+                else:
+                    newList[-1] = newList[-1] + ' g'
+            
+        return newList
+            
+
+    # read about ingredients helper
+    def colorChanger(self, instance):
+        for btn in instance.parent.children:
+            if (btn.background_color == [0, 255, 255, 0.4]):
+                btn.background_color = [1, 1, 1, 1]
+                break
+
+        instance.background_color = [0, 255, 255, 0.4]
+
+
+    def GetSchemas(self):
+        originalSchema.append(sqlCommands.GetTableSchema(cur, conn, tableNames[0]))
+        originalSchema.append(sqlCommands.GetTableSchema(cur, conn, tableNames[1]))
+        originalSchema.append(sqlCommands.GetTableSchema(cur, conn, tableNames[2]))
+        originalSchema.append(sqlCommands.GetTableSchema(cur, conn, tableNames[3]))
+        originalSchema.append(sqlCommands.GetTableSchema(cur, conn, tableNames[4]))
+
+        editedSchema.append(self.OrganizeList(originalSchema[0]))
+        editedSchema.append(self.OrganizeList(originalSchema[1]))
+        editedSchema.append(self.OrganizeList(originalSchema[2]))
+        editedSchema.append(self.OrganizeList(originalSchema[3]))
+        editedSchema.append(self.OrganizeList(originalSchema[4]))
+
+
+    # test data for add ingredient screens
+    def MakeTestData(self, grid, instance):
+        # textinputs are the first half of grids children. ex) first 8 of 16
+        for i in range(0, len(grid.children) // 2):
+            grid.children[i].text = str(random.randrange(0, 51))
         
 
-# 25 # ?? means '+', 50 means '++'
-def nutrients_db(food):
-    if (food.id == "blueberries"):
-        food.cals = 57
-        food.protien = 0.7
-        food.carbs = 14.5
-        food.sugar = 10
-        food.fiber = 2.4
-        food.fat = 0.3
-        food.vitc = 25 # ??
-        food.vitk1 = 25 # ??
-        food.manganese = 25 # ??
-        food.anthocyanin = '+'
-        food.quercetin = '+'
-        food.myricetin = '+'
-        return
-
-    elif (food.id == "strawberries"):
-        food.cals = 32
-        food.sugar = 4.9
-        food.protien = 0.7
-        food.carbs = 7.7
-        food.fiber = 2
-        food.fat = 0.3
-        food.vitc = 25 # ??
-        food.vitb9 = 25 # ??
-        food.potassium = 25 # ??
-        food.manganese = 25 # ??
-        food.pelargonidin = '+'
-        food.procyanidins = '+'
-        food.ellagitannins = '+'
-        food.ellagic_acid = '+'
-        return
-
-    elif (food.id == "blackberries"):
-        food.cals = 62
-        food.sugar = 7
-        food.protien = 2 
-        food.carbs = 14
-        food.fiber = 7.6
-        food.fat = 0.7
-        food.vitc = 50 # ??
-        food.vitk1 = 50 # ??
-        food.manganese = 50 # ?? 
-        food.potassium = 25 # ??
-        food.anthocyanin = '+'
-        food.procyanidins = '+'
-        food.ellagitannins = '+'
-        food.ellagic_acid = '+' 
-        return
-
-    elif (food.id == "raspberries"):
-        food.cals = 64
-        food.sugar = 7
-        food.protien = 1.5 
-        food.carbs = 14.7
-        food.fiber = 8
-        food.fat = 0.8
-        food.vitc = 54
-        food.vitk = 12
-        food.vite = 5
-        food.vitb4 = 6
-        food.manganese = 41
-        food.iron = 5
-        food.phosphorus = 4
-        food.potassium = 5
-        food.copper = 6
-        food.anthocyanin = '+'
-        food.quercetin = '+'
-        food.ellagic_acid = '+'
-        return
-
-    elif (food.id == "protein_powder"):
-        food.cals = 200
-        food.cholesterol = 100
-        food.sugar = 3
-        food.protien = 30 
-        food.calcium = 160
-        food.fiber = 1
-        food.fat = 4
-        food.satfat = 1.5
-        food.sodium = 190
-        food.potassium = 340
-        food.creatine = 1.5
-        food.taurine = 1.5
-        food.L_glutamine = 1.5
-        return
-
-    else: 
-        print("ERROR: UNKNOWN UNGREDIANT, EVERYTHNG IS RUINED OH MOI GAWD")
 
 
+class myApp(App):
+    def build(self):
+        return Main_Page()
+
+
+if __name__ == "__main__":
+    myApp().run()
+
+    # close the communication with the PostgreSQL
+    if conn is not None:
+        conn.close()
+        print('\nDatabase connection closed')
+
+
+
+
+
+
+
+
+
+
+
+
+
+# thiamin = b1
+# riboflaven = b2
 def smoothie_adder(food, smoothie):
     smoothie.cals += food.cals
     smoothie.sugar += food.sugar
@@ -264,13 +440,7 @@ def main():
 
 
         
-class myApp(App):
-    def build(self):
-        return Main_Page()
 
-
-if __name__ == "__main__":
-    myApp().run()
 
 
 
