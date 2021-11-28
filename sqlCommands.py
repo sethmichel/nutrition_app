@@ -2,7 +2,7 @@ import psycopg2
 from config import config
 
 # create a table if one doesn't exist
-def create_table(cur, conn):
+def CreateTables(cur, conn):
     try:
         # thiamin = b1
         # riboflavin = b2
@@ -43,18 +43,56 @@ def create_table(cur, conn):
         print(error)
         
 
-def sendIngredientData(conn, cur, instance):
-    #           enterBtn, layout, scroll,     grid       0-6 are textinputs
+def SendIngredientData(conn, cur, originalSchema, tableNames, sm, instance):
     try:
-        inputList = instance.parent.children[1].children[0].children[0:7]
-        cur.execute("INSERT INTO nutrition(Name, calories, protein, carbs, sugar, fiber, total_fat) VALUES (%s,%s,%s,%s,%s,%s,%s);", (inputList[6].text,inputList[5].text,inputList[4].text,inputList[3].text,inputList[2].text,inputList[1].text,inputList[0].text))
-        conn.commit()
+        for i in range(0, len(originalSchema)):
+            #cur.execute("INSERT INTO nutrition(name, calories, protein, carbs, sugar, fiber, total_fat) VALUES (%s,%s,%s,%s,%s,%s,%s);", (inputList[6].text,inputList[5].text,inputList[4].text,inputList[3].text,inputList[2].text,inputList[1].text,inputList[0].text))
+            sql = "INSERT INTO " + tableNames[i] + "("
+            colNames = []
+            values = []
 
+            # the col names
+            for j in range(0, len(originalSchema[i])):
+                sql += (str(originalSchema[i][j])[2:-3] + ", ")
+
+            sql = sql[:-2] + ") VALUES ("    # cut off last comma
+            grid = sm.screens[i].children[0].children[1]
+
+            # textinputs are in the same order as the originalSchema col names, and they're first
+            for j in range(0, len(originalSchema[i])):
+                sql += (grid.children[j].text + ", ")
+            
+            sql = sql[:-2] + ");"
+
+            cur.execute(sql)
+            conn.commit()
+            
     except(Exception, psycopg2.DatabaseError) as error:
         conn.rollback()
         print(error)
+    
+def GetTableSchema(cur, conn, tableName):
+    try:
+        cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = '" + tableName + "';")
+        x = cur.fetchall()
+        return x
 
+    except (Exception) as error:
+        conn.rollback()
+        print(error)
 
+def GetTableNames(cur, conn):
+    try: 
+        cur.execute("SELECT table_schema, table_name FROM information_schema.tables WHERE table_schema != 'pg_catalog' AND table_schema != 'information_schema';")
+        x = cur.fetchall()
+        tables = []
+        for i in range(0, len(x)):
+            tables.append(x[i][1])
+        return tables
+
+    except (Exception) as error:
+        print(error)
+        conn.rollback()
 
 
 

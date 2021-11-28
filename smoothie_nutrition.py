@@ -11,7 +11,10 @@ from kivy.core.window import Window
 from kivy.uix.modalview import ModalView
 from kivy.uix.popup import Popup
 from kivy.properties import StringProperty
+from kivy.core.window import Window
+from kivy.uix.screenmanager import ScreenManager, Screen
 
+import random
 import psycopg2
 from config import config
 
@@ -23,6 +26,9 @@ import sqlCommands
 
 # connects to the db and prints pgsql version
 conn = None
+tableNames = []
+originalSchema = []
+editedSchema = []
 
 try:
     params = config() # this is the config library
@@ -42,7 +48,7 @@ try:
     db_version = cur.fetchone()
     print(db_version)
 
-    sqlCommands.create_table(cur, conn)
+    sqlCommands.CreateTables(cur, conn)
 
 except (Exception, psycopg2.DatabaseError) as error:
     print("error ", error)
@@ -56,14 +62,14 @@ class Main_Page(GridLayout):
         self.cols = 4
 
         # make btns
-        new_btn = self.MakeBtn("Make New Smoothie")
-        saved_btn = self.MakeBtn("Saved Recipeis")
-        read_btn = self.MakeBtn("Read About Ingrediants")
-        ingredient_btn = self.MakeBtn("Add Ingrediant Data")
+        new_btn = Button(text = "Make New Smoothie", size_hint_y = None)
+        saved_btn = Button(text = "Saved Recipeis", size_hint_y = None)
+        read_btn = Button(text = "Read About Ingrediants", size_hint_y = None)
+        ingredient_btn = Button(text = "Add Ingrediant Data", size_hint_y = None)
         
         # bind btns
         read_btn.bind(on_release = self.ReadIngredients)
-        ingredient_btn.bind(on_release = self.AddIngredientModel)
+        ingredient_btn.bind(on_release = self.AddIngredient)
 
         # display btns
         self.add_widget(new_btn)
@@ -72,35 +78,99 @@ class Main_Page(GridLayout):
         self.add_widget(ingredient_btn)
 
 
-    # called at app start by init()
-    def MakeBtn(self, words):
-        return Button(text = words, size_hint_y = None)
-
-
     # EVENT: user clicked the add an ingredients btn
-    def AddIngredientModel(self, instance):
-        mainview = ModalView(size_hint = (0.75, 0.75))
-        layout = BoxLayout(orientation = "vertical")
-        layout.add_widget(Label(text = "Add Ingrediant Data", size_hint_y = 0.2))
-        enterBtn = Button(text = "Submit", size_hint_y = 0.1)
-        
-        # make scrollable gridlayout
-        grid = GridLayout(rows = 50, cols = 7, size_hint_y = 0.7)
-        grid.bind(minimum_height = grid.setter("height"))               # makes the gridlayout scrollabel via the scrollview
-        scroll = ScrollView(do_scroll_x = False, do_scroll_y = True)    # a scroll view will contain the gridlayout
-        
-        ingredientList = ["Food", 'Calories', 'Protein (g)', 'Carbs (g)', 'Sugar (g)', 'Fiber (g)', 'Total Fat (g)']
-        for i in ingredientList:
-            grid.add_widget(Label(text = i))
-        for i in range(0, 7):
-            grid.add_widget(TextInput())
+    def AddIngredient(self, instance):
+        originalSchema = []
 
-        enterBtn.fbind("on_release", sqlCommands.sendIngredientData, conn, cur)
-        scroll.add_widget(grid)
-        layout.add_widget(scroll)
-        layout.add_widget(enterBtn)
-        mainview.add_widget(layout)
-        mainview.open()
+        tableNames = sqlCommands.GetTableNames(cur, conn)
+
+        if (originalSchema == []):
+            self.GetSchemas()
+
+        sm = ScreenManager()
+        mainView = ModalView(size_hint = (0.9, 0.9))
+        names = ["Basic Info", "Vitamins And Minerals", "Antioxidants", "Misc Nutrients", "Misc Info"]
+
+        # make the screens
+        for i in range(0, len(names)):
+            screen = Screen(name = names[i])
+            
+            layout = BoxLayout(orientation = "vertical")
+            grid = GridLayout(cols = 7, size_hint_y = 0.8)
+
+            # load grids (probably better as a boxlayout so it's dynamic sizes tbh)
+            for j in range(0, len(editedSchema[i])):
+                grid.add_widget(Label(text = editedSchema[i][j], size_hint_y = 0.2))
+            for j in range(0, len(editedSchema[i])):
+                grid.add_widget(TextInput(size_hint_y = 0.2))
+
+            btnLayout = GridLayout(rows = 1, cols = 3, size_hint_y = 0.1)            
+            backBtn = Button(text = "Back", size_hint_x = 0.1, ids = {"name": "back"})
+            testBtn = Button(text = "test", size_hint_x = 0.1, ids = {"name": "test"})
+            backBtn.fbind("on_release", self.NextBtnEvent, sm)
+            testBtn.fbind("on_release", self.MakeTestData, grid)
+            btnLayout.add_widget(backBtn)
+            btnLayout.add_widget(testBtn)
+
+            if (i < len(names) - 1):
+                nextBtn = Button(text = "Next", size_hint_x = 0.8, ids = {"name": "next"})
+                nextBtn.fbind("on_release", self.NextBtnEvent, sm)
+                btnLayout.add_widget(nextBtn)
+            else:
+                submitBtn = Button(text = "Submit", size_hint_x = 0.7, ids = {"name": "submit"})
+                submitBtn.fbind("on_release", sqlCommands.SendIngredientData, conn, cur, originalSchema, tableNames, sm)
+                btnLayout.add_widget(submitBtn)
+            
+            layout.add_widget(Label(text = names[i], size_hint_y = 0.1))
+            layout.add_widget(grid)
+            layout.add_widget(btnLayout)
+            screen.add_widget(layout)
+            sm.add_widget(screen)
+
+        mainView.add_widget(sm)
+        mainView.open()
+
+    # send data to sql, change ui
+    # sm is screen manager
+    def NextBtnEvent(self, sm, instance):
+        # header label, and change grids
+        if (sm.current == "Basic Info"):
+            sm.transition.direction = 'left'
+            sm.current = "Vitamins And Minerals"    
+
+        elif (sm.current == "Vitamins And Minerals"):
+            if (instance.ids["name"] == "next"):
+                sm.transition.direction = 'left'
+                sm.current = "Antioxidants"
+            else:
+                sm.transition.direction = 'right'
+                sm.current = "Basic Info"
+
+        elif (sm.current == "Antioxidants"):
+            if (instance.ids["name"] == "next"):
+                sm.transition.direction = 'left'
+                sm.current = "Misc Nutrients"
+            else:
+                sm.transition.direction = 'right'
+                sm.current = "Vitamins And Minerals"
+            
+        elif (sm.current == "Misc Nutrients"):
+            if (instance.ids["name"] == "next"): 
+                sm.transition.direction = 'left'
+                sm.current = "Misc Info"
+            else: 
+                sm.transition.direction = 'right'
+                sm.current = "Antioxidants"
+        else:
+            sm.transition.direction = 'right'
+            sm.current = "Misc Nutrients"
+                
+
+
+
+
+
+
 
 
     # EVENT: user clicked the read about ingredients btn
@@ -108,38 +178,13 @@ class Main_Page(GridLayout):
         mainview = ModalView(size_hint = (0.75, 0.75))
         layout = BoxLayout(orientation = "vertical")
 
-        # search bar
+        # search bar grid
         searchGrid = GridLayout(rows = 1, cols = 2, size_hint_y = 0.1)
         searchGrid.add_widget(TextInput(hint_text = "ingredient...", size_hint_x = 0.8))
         searchGrid.add_widget(Button(text = "Search", size_hint_x = 0.2))
         searchGrid.children[0].bind(on_release = self.SearchIngredient)
 
-        layout.add_widget(searchGrid)
-        layout.add_widget(self.ReadIngredientsUpperGrid())
-        layout.add_widget(self.ReadIngredientsLowerGrid())
-
-        mainview.add_widget(layout)
-        mainview.open()
-
-
-    # default is display all
-    # for all, food is headers, ingredients is rows. Tap a col and it'll highlight that whole col
-    # > for easier scrolling
-    def ReadIngredientsLowerGrid(self):
-        # make scrollable gridlayout
-        grid = GridLayout(cols = 7, size_hint_y = 0.7)
-        grid.bind(minimum_height = grid.setter("height"))
-        scroll = ScrollView(do_scroll_x = False, do_scroll_y = True)
-
-        # get list of foods as headers
-        # get list of ingredients as cols
-        # insert data
-
-        return scroll
-
-
-    # returns the uppder grid of btns for the read ingredients menu
-    def ReadIngredientsUpperGrid(self):
+        # upper grid of buttons
         upperGrid = GridLayout(rows = 1, cols = 5, size_hint_y = 0.2)
 
         basicInfoBtn = Button(text = "Basic Info")
@@ -160,12 +205,73 @@ class Main_Page(GridLayout):
         upperGrid.add_widget(miscInfoBtn)
         upperGrid.add_widget(allBtn)
 
-        return upperGrid
+        # combine stuff
+        layout.add_widget(searchGrid)
+        layout.add_widget(upperGrid)
+        layout.add_widget(self.HelperReadIngredientsLowerGrid())
+
+        mainview.add_widget(layout)
+        mainview.open()
+
+
+    # default is display basic info
+    # nutrient is row headers, the other cols is the info. Click it to open a popup with the info
+    def ReadIngredientsLowerGrid(self):
+        # make scrollable gridlayout
+        grid = GridLayout(cols = 2, size_hint_y = 0.7)
+        grid.bind(minimum_height = grid.setter("height"))
+        scroll = ScrollView(do_scroll_x = False, do_scroll_y = True)
+
+        # get list of foods as headers
+        for i in editedSchema[0][1:]:
+            grid.add_widget(Label(text = i, size_hint_x = 0.2))
+            grid.add_widget(Label())
+
+        # get list of ingredients as cols
+        # insert data
+
+        # I need anohter table of nutrient info, just 2 cols, every nutrient from each tabel. Need that first
+
+
+        scroll.add_widget(grid)
+
+        return scroll
+
+
     
     
     def SearchIngredient(self, instance):
         pass
 
+
+
+
+
+    def bulkUpload(self):
+       pass
+
+
+
+
+    # these are helpers ------------------------------------------------------------------------------
+
+    # add ingredient helper
+    def OrganizeList(self, tableSchema):
+        newList = []
+
+        for i in tableSchema:
+            newList.append(i[0])
+            newList[-1] = newList[-1].replace("_", " ")
+            if (newList[-1] != "name" and newList[-1] != "calories" and newList[-1] != "info"):
+                if (newList[-1] == "cholesterol" or newList[-1] == "sodium"):
+                    newList[-1] = newList[-1] + ' mg'
+                else:
+                    newList[-1] = newList[-1] + ' g'
+            
+        return newList
+            
+
+    # read about ingredients helper
     def colorChanger(self, instance):
         for btn in instance.parent.children:
             if (btn.background_color == [0, 255, 255, 0.4]):
@@ -175,13 +281,29 @@ class Main_Page(GridLayout):
         instance.background_color = [0, 255, 255, 0.4]
 
 
+    def GetSchemas(self):
+        originalSchema.append(sqlCommands.GetTableSchema(cur, conn, tableNames[0]))
+        originalSchema.append(sqlCommands.GetTableSchema(cur, conn, tableNames[1]))
+        originalSchema.append(sqlCommands.GetTableSchema(cur, conn, tableNames[2]))
+        originalSchema.append(sqlCommands.GetTableSchema(cur, conn, tableNames[3]))
+        originalSchema.append(sqlCommands.GetTableSchema(cur, conn, tableNames[4]))
 
-    def bulkUpload(self):
-       pass
+        editedSchema.append(self.OrganizeList(originalSchema[0]))
+        editedSchema.append(self.OrganizeList(originalSchema[1]))
+        editedSchema.append(self.OrganizeList(originalSchema[2]))
+        editedSchema.append(self.OrganizeList(originalSchema[3]))
+        editedSchema.append(self.OrganizeList(originalSchema[4]))
 
 
-
+    # test data for add ingredient screens
+    def MakeTestData(self, grid, instance):
+        # textinputs are the first half of grids children. ex) first 8 of 16
+        for i in range(0, len(grid.children) // 2):
+            grid.children[i].text = str(random.randrange(0, 51))
         
+
+
+
 class myApp(App):
     def build(self):
         return Main_Page()
