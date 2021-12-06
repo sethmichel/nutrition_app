@@ -13,122 +13,95 @@ from kivy.uix.popup import Popup
 from kivy.properties import StringProperty
 from kivy.core.window import Window
 from kivy.uix.screenmanager import ScreenManager, Screen
-
 import random
 import psycopg2
 from config import config
 
 import sqlCommands
 
-
 # WARNING: this repo uses a database.ini file to connect to the db, this isn't uploaded to github for security reasons so make your own connection
 
+# changeing the btns around is so messed up
 
-# connects to the db and prints pgsql version
-conn = None
-tableNames = []
-originalSchema = []
-editedSchema = []
 
 try:
-    params = config() # this is the config library
-    conn = psycopg2.connect("dbname='nutritionDB' user='postgres' host='localhost' password='1234'")
-
-    # connect to the PostgreSQL server
     print('\nConnecting to the PostgreSQL database...')
-    conn = psycopg2.connect(**params)
-
+    conn = psycopg2.connect(**config())
     cur = conn.cursor()
     
-    # execute a statement
     print('PostgreSQL database version: ')
     cur.execute('SELECT version()')
+    print(cur.fetchone())
 
-    # display the PostgreSQL db server version
-    db_version = cur.fetchone()
-    print(db_version)
-
-    sqlCommands.CreateTables(cur, conn)
+    dbTableNames = sqlCommands.GetTableNames(cur, conn)
+    sqlCommands.CreateTables(cur, conn, dbTableNames)
 
 except (Exception, psycopg2.DatabaseError) as error:
     print("error ", error)
 
 
-# all graphics/widgets: grids, btns, labels for all data
 class Main_Page(GridLayout):
     def __init__(self, **kwargs):
-        super(Main_Page, self).__init__(**kwargs)   # this is only for if kivy code goes in the py file
+        super(Main_Page, self).__init__(**kwargs)
 
         self.cols = 4
 
-        # make btns
-        new_btn = Button(text = "Make New Smoothie", size_hint_y = None)
-        saved_btn = Button(text = "Saved Recipeis", size_hint_y = None)
-        read_btn = Button(text = "Read About Ingrediants", size_hint_y = None)
-        ingredient_btn = Button(text = "Add Ingrediant Data", size_hint_y = None)
-        
-        # bind btns
-        read_btn.bind(on_release = self.ReadIngredients)
-        ingredient_btn.bind(on_release = self.AddIngredient)
+        self.uiTableNames = self.FormatHeaders()
+        self.allHeaders = self.GetSchemas()         # dictionary of lists with all table headers
+        self.nutrientData = sqlCommands.GetNutrientData(conn, cur)
 
-        # display btns
-        self.add_widget(new_btn)
-        self.add_widget(saved_btn)
-        self.add_widget(read_btn)
-        self.add_widget(ingredient_btn)
+        self.add_widget(Button(text = "Make New Smoothie", size_hint_y = None))
+        self.add_widget(Button(text = "Saved Recipes", size_hint_y = None))
+        self.add_widget(Button(text = "Read About Nutrients", size_hint_y = None, on_release = self.ReadNutrients))
+        self.add_widget(Button(text = "Add Ingrediant Data", size_hint_y = None, on_release = self.AddIngredient))
 
 
-    # EVENT: user clicked the add an ingredients btn
+    # user clicked the add an ingredients btn
     def AddIngredient(self, instance):
-        originalSchema = []
-
-        tableNames = sqlCommands.GetTableNames(cur, conn)
-
-        if (originalSchema == []):
-            self.GetSchemas()
-
         sm = ScreenManager()
         mainView = ModalView(size_hint = (0.9, 0.9))
-        names = ["Basic Info", "Vitamins And Minerals", "Antioxidants", "Misc Nutrients", "Misc Info"]
 
         # make the screens
-        for i in range(0, len(names)):
-            screen = Screen(name = names[i])
-            
-            layout = BoxLayout(orientation = "vertical")
-            grid = GridLayout(cols = 7, size_hint_y = 0.8)
+        for i in range(0, len(self.uiTableNames)):
+            if (self.uiTableNames[i] != "nutrient_info"):
+                screen = Screen(name = self.uiTableNames[i])
+                
+                layout = BoxLayout(orientation = "vertical")
+                grid = GridLayout(cols = 7, size_hint_y = 0.8)
 
-            # load grids (probably better as a boxlayout so it's dynamic sizes tbh)
-            for j in range(0, len(editedSchema[i])):
-                grid.add_widget(Label(text = editedSchema[i][j], size_hint_y = 0.2))
-            for j in range(0, len(editedSchema[i])):
-                grid.add_widget(TextInput(size_hint_y = 0.2))
+                # load grids (probably better as a boxlayout so it's dynamic sizes tbh)
+                for j in range(0, len(self.allHeaders[self.uiTableNames[i]])):
+                    grid.add_widget(Label(text = self.allHeaders[self.uiTableNames[i]][j], size_hint_y = 0.2))
+                for j in range(0, len(self.allHeaders[self.uiTableNames[i]])):
+                    grid.add_widget(TextInput(size_hint_y = 0.2))
 
-            btnLayout = GridLayout(rows = 1, cols = 3, size_hint_y = 0.1)            
-            backBtn = Button(text = "Back", size_hint_x = 0.1, ids = {"name": "back"})
-            testBtn = Button(text = "test", size_hint_x = 0.1, ids = {"name": "test"})
-            backBtn.fbind("on_release", self.NextBtnEvent, sm)
-            testBtn.fbind("on_release", self.MakeTestData, grid)
-            btnLayout.add_widget(backBtn)
-            btnLayout.add_widget(testBtn)
+                btnLayout = GridLayout(rows = 1, cols = 3, size_hint_y = 0.1)            
+                backBtn = Button(text = "Back", size_hint_x = 0.1, ids = {"name": "back"})
+                testBtn = Button(text = "test", size_hint_x = 0.1, ids = {"name": "test"})
+                backBtn.fbind("on_release", self.NextBtnEvent, sm)
+                testBtn.fbind("on_release", self.MakeTestData, grid)
+                btnLayout.add_widget(backBtn)
+                btnLayout.add_widget(testBtn)
 
-            if (i < len(names) - 1):
-                nextBtn = Button(text = "Next", size_hint_x = 0.8, ids = {"name": "next"})
-                nextBtn.fbind("on_release", self.NextBtnEvent, sm)
-                btnLayout.add_widget(nextBtn)
-            else:
-                submitBtn = Button(text = "Submit", size_hint_x = 0.7, ids = {"name": "submit"})
-                submitBtn.fbind("on_release", sqlCommands.SendIngredientData, conn, cur, originalSchema, tableNames, sm)
-                btnLayout.add_widget(submitBtn)
-            
-            layout.add_widget(Label(text = names[i], size_hint_y = 0.1))
-            layout.add_widget(grid)
-            layout.add_widget(btnLayout)
-            screen.add_widget(layout)
-            sm.add_widget(screen)
+                if (i < len(self.uiTableNames) - 1):
+                    nextBtn = Button(text = "Next", size_hint_x = 0.8, ids = {"name": "next"})
+                    nextBtn.fbind("on_release", self.NextBtnEvent, sm)
+                    btnLayout.add_widget(nextBtn)
+                else:
+                    submitBtn = Button(text = "Submit", size_hint_x = 0.7, ids = {"name": "submit"})
+                    submitBtn.fbind("on_release", sqlCommands.SendIngredientData, conn, cur, self.allHeaders, dbTableNames, sm)
+                    btnLayout.add_widget(submitBtn)
+                
+                layout.add_widget(Label(text = self.uiTableNames[i], size_hint_y = 0.1))
+                layout.add_widget(grid)
+                layout.add_widget(btnLayout)
+                screen.add_widget(layout)
+                sm.add_widget(screen)
 
+        sm.screens[0].children[0].children[0].children[2].disabled = True    # basic info (1st screens) back btn
         mainView.add_widget(sm)
         mainView.open()
+
 
     # send data to sql, change ui
     # sm is screen manager
@@ -136,9 +109,9 @@ class Main_Page(GridLayout):
         # header label, and change grids
         if (sm.current == "Basic Info"):
             sm.transition.direction = 'left'
-            sm.current = "Vitamins And Minerals"    
+            sm.current = "Vitamins and Minerals"
 
-        elif (sm.current == "Vitamins And Minerals"):
+        elif (sm.current == "Vitamins and Minerals"):
             if (instance.ids["name"] == "next"):
                 sm.transition.direction = 'left'
                 sm.current = "Antioxidants"
@@ -152,7 +125,7 @@ class Main_Page(GridLayout):
                 sm.current = "Misc Nutrients"
             else:
                 sm.transition.direction = 'right'
-                sm.current = "Vitamins And Minerals"
+                sm.current = "Vitamins and Minerals"
             
         elif (sm.current == "Misc Nutrients"):
             if (instance.ids["name"] == "next"): 
@@ -164,112 +137,162 @@ class Main_Page(GridLayout):
         else:
             sm.transition.direction = 'right'
             sm.current = "Misc Nutrients"
-                
 
 
-
-
-
-
-
-
-    # EVENT: user clicked the read about ingredients btn
-    def ReadIngredients(self, instance):
+    # user clicked the read about nutrients btn
+    def ReadNutrients(self, instance):
         mainview = ModalView(size_hint = (0.75, 0.75))
         layout = BoxLayout(orientation = "vertical")
 
         # search bar grid
-        searchGrid = GridLayout(rows = 1, cols = 2, size_hint_y = 0.1)
-        searchGrid.add_widget(TextInput(hint_text = "ingredient...", size_hint_x = 0.8))
-        searchGrid.add_widget(Button(text = "Search", size_hint_x = 0.2))
-        searchGrid.children[0].bind(on_release = self.SearchIngredient)
+        searchGrid = GridLayout(rows = 1, cols = 1, size_hint_y = 0.1)
+        txt = TextInput(hint_text = "Ingredient...")
+        txt.fbind("text", self.SearchIngredient, layout)   # text callback also passes the actual text as a para
+        searchGrid.add_widget(txt)
 
         # upper grid of buttons
-        upperGrid = GridLayout(rows = 1, cols = 5, size_hint_y = 0.2)
-
+        upperGrid = GridLayout(rows = 1, cols = 5, size_hint_y = 0.15)
         basicInfoBtn = Button(text = "Basic Info")
         antioxidantsBtn = Button(text = "Antioxidants")
-        vitaminMineralsBtn = Button(text = "vitaminMinerals")
-        miscInfoBtn = Button(text = "Misc Info")
-        allBtn = Button(text = "All")
+        vitMinBtn = Button(text = "VitaminMinerals")
+        miscInfo = Button(text = "Misc Info")
+        allBtn = Button(text = "All", background_color = [0, 255, 255, 0.4])
 
-        basicInfoBtn.bind(on_release = self.colorChanger)
-        antioxidantsBtn.bind(on_release = self.colorChanger)
-        vitaminMineralsBtn.bind(on_release = self.colorChanger)
-        miscInfoBtn.bind(on_release = self.colorChanger)
-        allBtn.bind(on_release = self.colorChanger)
+        basicInfoBtn.fbind("on_release", self.ReadNutrientsChangeLowerGrid, layout)
+        antioxidantsBtn.fbind("on_release", self.ReadNutrientsChangeLowerGrid, layout)
+        vitMinBtn.fbind("on_release", self.ReadNutrientsChangeLowerGrid, layout)
+        miscInfo.fbind("on_release", self.ReadNutrientsChangeLowerGrid, layout)
+        allBtn.fbind("on_release", self.ReadNutrientsChangeLowerGrid, layout)
 
         upperGrid.add_widget(basicInfoBtn)
         upperGrid.add_widget(antioxidantsBtn)
-        upperGrid.add_widget(vitaminMineralsBtn)
-        upperGrid.add_widget(miscInfoBtn)
+        upperGrid.add_widget(vitMinBtn)
+        upperGrid.add_widget(miscInfo)
         upperGrid.add_widget(allBtn)
 
+        # lower grid
+        grid = GridLayout(cols = 4, size_hint_y = None)
+        grid.bind(minimum_height = grid.setter("height"))
+        scroll = ScrollView(do_scroll_x = False, do_scroll_y = True)
+
         # combine stuff
+        scroll.add_widget(grid)
         layout.add_widget(searchGrid)
         layout.add_widget(upperGrid)
-        layout.add_widget(self.HelperReadIngredientsLowerGrid())
+        layout.add_widget(scroll)
+
+        # populate
+        self.ReadNutrientsChangeLowerGrid(layout, "All")
 
         mainview.add_widget(layout)
         mainview.open()
 
 
-    # default is display basic info
-    # nutrient is row headers, the other cols is the info. Click it to open a popup with the info
-    def ReadIngredientsLowerGrid(self):
-        # make scrollable gridlayout
-        grid = GridLayout(cols = 2, size_hint_y = 0.7)
-        grid.bind(minimum_height = grid.setter("height"))
-        scroll = ScrollView(do_scroll_x = False, do_scroll_y = True)
+    # instance: if user just landed on this screen "all" is default so instance is a string "all"
+    # if user clicks a btn to limit results, instance is the btn clicked
+    def ReadNutrientsChangeLowerGrid(self, layout, instance):
+        # start screen (only happens once)
+        if (instance == "All"):
+            for table in self.uiTableNames:
+                for cell in self.allHeaders[table]:
+                    if (cell != "name" and cell != "info"):
+                        layout.children[0].children[0].add_widget(Button(text = cell, size_hint_y = None, on_release = self.NutrientInfoModel))
+            
+        # user cliked a btn (the table is guarenteed to have been made already)
+        else:
+            btnList = []
+            self.colorChanger(instance)
 
-        # get list of foods as headers
-        for i in editedSchema[0][1:]:
-            grid.add_widget(Label(text = i, size_hint_x = 0.2))
-            grid.add_widget(Label())
+            if (instance.text == "All"): 
+                for table in self.uiTableNames:
+                    for cell in self.allHeaders[table]:
+                        if (cell != "name" and cell != "info"):
+                            btnList.append(cell)
 
-        # get list of ingredients as cols
-        # insert data
+            elif (instance.text == "Basic Info"):
+                btnList = self.allHeaders["Basic Info"]
+            elif (instance.text == "Antioxidants"):
+                btnList = self.allHeaders["Antioxidants"]
+            elif (instance.text == "VitaminMinerals"):
+                btnList = self.allHeaders["Vitamins and Minerals"]
+            else:
+                btnList = self.allHeaders["Misc Info"]
 
-        # I need anohter table of nutrient info, just 2 cols, every nutrient from each tabel. Need that first
+            if ("name" in btnList): btnList.remove("name")
+            if ("info" in btnList): btnList.remove("info")
+            
+            # if a layout btn isn't in btnList -> delete it from layout
+            # if a layout btn is in btnList -> delete it from btnList
+            # then add whatevers left in btnList to layout
+            # NOTE: kivy was glitching and showing random cells from other tables when I did this via another, more
+            #       efficient, way. there was no error in my code so I switched to using clear()
+            layout.children[0].children[0].children.clear()
+            for cell in btnList:
+                layout.children[0].children[0].add_widget(Button(text = cell, size_hint_y = None, on_release = self.NutrientInfoModel))
+
+            print(btnList)
+            
 
 
-        scroll.add_widget(grid)
 
-        return scroll
+    # this should be editable
+    # modelView from read ingredients buttons
+    def NutrientInfoModel(self, instance):
+        # if edited, update sql
+        mainview = ModalView(size_hint = (0.75, 0.75))
+        layout = BoxLayout(orientation = "vertical")
+
+        upperGrid = GridLayout(cols = 3, size_hint_y = 0.15)
+        upperGrid.add_widget(Label(text = instance.text, size_hint_x = 0.8))   # how do I center this?
+        upperGrid.add_widget(Button(text = "Edit", size_hint_x = 0.1, on_release = self.EditEnabler))
+        closeBtn = Button(text = "X", size_hint_x = 0.1)
+        closeBtn.fbind("on_release", self.CloseNutrientInfo)
+        upperGrid.add_widget(closeBtn)
+
+        layout.add_widget(upperGrid)
+        layout.add_widget(TextInput(text = self.nutrientData[instance.text], readonly = True))
+        mainview.add_widget(layout)
+        mainview.open()
 
 
-    
-    
-    def SearchIngredient(self, instance):
-        pass
+    # enables textinputs editing in the layout
+    def EditEnabler(self, instance):
+        # btn, gridlayout, boxlayout, textinput
+        instance.parent.parent.children[0].readonly = False
 
 
+    # if things have been edited, do a pop up asking if they want to save
+    # popups can only have 1 widget in content, so I gotta use a gridlayout
+    def CloseNutrientInfo(self, instance):
+        # btn, gridlayout, boxlayout, textinput
+        if (instance.parent.parent.children[0].disabled == False):
+            layout = GridLayout(cols = 2)
+            layout.add_widget(Button(text = "Save"))
+            layout.add_widget(Button(text = "Close"))
 
+            popup = Popup(title = "Save Changes?", title_align = "center", content = layout, size_hint = (0.4, 0.2))
+            
+            popup.open()
+
+
+    def SearchIngredient(self, layout, instance, text):
+        length = len(text)
+        text = text.lower()
+        listHolder = layout.children[0].children[0].children
+        endIndex = len(listHolder)   # -1 didn't work for end of list, so I use this
+
+        for i in range(1, len(listHolder)):
+            if (listHolder[i].text[:length] == text):
+                btnHolder = layout.children[0].children[0].children.pop(i)
+                btnHolder.parent = None
+                layout.children[0].children[0].add_widget(btnHolder, endIndex)
 
 
     def bulkUpload(self):
        pass
 
 
-
-
     # these are helpers ------------------------------------------------------------------------------
-
-    # add ingredient helper
-    def OrganizeList(self, tableSchema):
-        newList = []
-
-        for i in tableSchema:
-            newList.append(i[0])
-            newList[-1] = newList[-1].replace("_", " ")
-            if (newList[-1] != "name" and newList[-1] != "calories" and newList[-1] != "info"):
-                if (newList[-1] == "cholesterol" or newList[-1] == "sodium"):
-                    newList[-1] = newList[-1] + ' mg'
-                else:
-                    newList[-1] = newList[-1] + ' g'
-            
-        return newList
-            
 
     # read about ingredients helper
     def colorChanger(self, instance):
@@ -281,18 +304,26 @@ class Main_Page(GridLayout):
         instance.background_color = [0, 255, 255, 0.4]
 
 
+    # a little messy, but I just prefer to have the ui table names as the keys instead of db table names
     def GetSchemas(self):
-        originalSchema.append(sqlCommands.GetTableSchema(cur, conn, tableNames[0]))
-        originalSchema.append(sqlCommands.GetTableSchema(cur, conn, tableNames[1]))
-        originalSchema.append(sqlCommands.GetTableSchema(cur, conn, tableNames[2]))
-        originalSchema.append(sqlCommands.GetTableSchema(cur, conn, tableNames[3]))
-        originalSchema.append(sqlCommands.GetTableSchema(cur, conn, tableNames[4]))
+        holder = {}
+        for i in range(0, len(dbTableNames)):
+            holder[self.uiTableNames[i]] = sqlCommands.GetTableSchema(cur, conn, dbTableNames[i])
 
-        editedSchema.append(self.OrganizeList(originalSchema[0]))
-        editedSchema.append(self.OrganizeList(originalSchema[1]))
-        editedSchema.append(self.OrganizeList(originalSchema[2]))
-        editedSchema.append(self.OrganizeList(originalSchema[3]))
-        editedSchema.append(self.OrganizeList(originalSchema[4]))
+        return holder
+
+
+    def FormatHeaders(self):
+        uiTableNames = []
+        for i in range(0, len(dbTableNames)):
+            uiTableNames.append(dbTableNames[i].replace('_', ' '))
+            uiTableNames[i] = uiTableNames[i].replace("'", "@")   # title function has issues with ', so temp replacing it
+            uiTableNames[i] = uiTableNames[i].title()
+            uiTableNames[i] = uiTableNames[i].replace("@", "'")
+            if (uiTableNames[i] == "Vitamins Minerals"):
+                uiTableNames[i] = "Vitamins and Minerals"
+        
+        return uiTableNames
 
 
     # test data for add ingredient screens
@@ -316,243 +347,5 @@ if __name__ == "__main__":
     if conn is not None:
         conn.close()
         print('\nDatabase connection closed')
-
-
-
-
-
-
-
-
-
-
-
-
-
-# thiamin = b1
-# riboflaven = b2
-def smoothie_adder(food, smoothie):
-    smoothie.cals += food.cals
-    smoothie.sugar += food.sugar
-    smoothie.added_sugar += food.added_sugar
-    smoothie.fiber += food.fiber
-    smoothie.fat += food.fat
-    smoothie.satfat += food.satfat
-    smoothie.cholesterol += food.cholesterol
-    smoothie.sodium += food.sodium
-
-    smoothie.vita += food.vita
-    smoothie.vitb9 += food.vitb9
-    smoothie.vitb4 += food.vitb4
-    smoothie.vitb_mystery += food.vitb_mystery
-    smoothie.vitc += food.vitc
-    smoothie.vitd += food.vitd
-    smoothie.vite += food.vite
-    smoothie.vitk1 += food.vitk1
-
-    smoothie.calcium += food.calcium
-    smoothie.manganese += food.manganese
-    smoothie.potassium += food.potassium
-    smoothie.iron += food.iron
-    smoothie.phosphorus += food.phosphorus
-    smoothie.copper += food.copper
-    smoothie.zinc += food.zinc
-    smoothie.creatine += food.creatine
-    smoothie.taurine += food.taurine
-    smoothie.L_glutamine += food.L_glutamine
-
-    # these are strs, just a '+' or '++' if they have a ton
-    smoothie.anthocyanin =  smoothie.anthocyanin + food.anthocyanin
-    smoothie.quercetin =  smoothie.quercetin + food.quercetin
-    smoothie.myricetin =  smoothie.myricetin + food.myricetin
-    smoothie.pelargonidin =  smoothie.pelargonidin + food.pelargonidin
-    smoothie.procyanidins =  smoothie.procyanidins + food.procyanidins
-    smoothie.ellagitannins =  smoothie.ellagitannins + food.ellagitannins
-    smoothie.ellagic_acid =  smoothie.ellagic_acid + food.ellagic_acid
-    
-
-# prints the smoothie facts
-def printer(smoothie):
-    print('cals: ', smoothie.cals)
-    print('sugar: ', smoothie.sugar, 'g')
-    print('added sugar: ', smoothie.added_sugar, 'g')
-    print('fiber: ', smoothie.fiber, 'g')
-    print('total fat: ', smoothie.fat, 'g')
-    print('sat fat: ', smoothie.satfat, 'g')
-    print('cholesterol: ', smoothie.cholesterol, 'mg')
-    print('sodium: ', smoothie.sodium, 'mg\n')
-
-    print('vita: ', smoothie.vita, '%')
-    print('vitb9: ', smoothie.vitb9, '%')
-    print('vitb4: ', smoothie.vitb4, '%')
-    print('vitb_mystery: ', smoothie.vitb_mystery, '%')
-    print('vitc: ', smoothie.vitc, '%')
-    print('vitd: ', smoothie.vitd, '%')
-    print('vite: ', smoothie.vite, '%')
-    print('vitk1: ', smoothie.vitk1, '%\n')
-
-    print('calcium: ', smoothie.calcium, '%')
-    print('manganese: ', smoothie.manganese, '%')
-    print('potassium: ', smoothie.potassium, '%')
-    print('iron: ', smoothie.iron, '%')
-    print('phosphorus: ', smoothie.phosphorus, '%')
-    print('copper: ', smoothie.copper, '%')
-    print('zinc: ', smoothie.zinc, '%')
-    print('creatine: ', smoothie.creatine, 'g')
-    print('taurine: ', smoothie.taurine, 'g')
-    print('L_glutamine: ', smoothie.L_glutamine, 'g\n')
-
-    print("Anti-Oxidents\n")
-
-    print('anthocyanin: ', smoothie.anthocyanin)
-    print('quercetin: ', smoothie.quercetin)
-    print('myricetin: ', smoothie.myricetin)
-    print('pelargonidin: ', smoothie.pelargonidin)
-    print('procyanidins: ', smoothie.procyanidins)
-    print('ellagitannins: ', smoothie.ellagitannins)
-    print('ellagic_acid: ', smoothie.ellagic_acid)
-
-
-def main():
-    blueberries = ingrediants("blueberries")
-    strawberries = ingrediants("strawberries")
-    blackberries = ingrediants("blackberries")
-    raspberries = ingrediants("raspberries")
-    protein_powder = ingrediants("protein_powder")
-    smoothie = ingrediants("smoothie")
-
-    ingrediant_list = []
-    ingrediant_list.append(blueberries)
-    ingrediant_list.append(strawberries)
-    ingrediant_list.append(blackberries)
-    ingrediant_list.append(raspberries)
-    ingrediant_list.append(protein_powder)
-    
-    for i in ingrediant_list:
-        nutrients_db(i)
-    
-    for i in ingrediant_list:
-        smoothie_adder(i, smoothie)
-
-    printer(smoothie)
-
-    print("\n\npause")
-
-
-        
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-'''
-    for i in ingrediants_list:
-        if (i.vita != 0): smoothie.vita += i.vita
-
-        if (i.vitb9 != 0): smoothie.vitb9 += i.
-        if (i.vitb4 != 0): smoothie.vitb4 += i.
-        if (i.vitb_mystery != 0): smoothie.vitb_mystery += i.
-        if (i.vitc != 0): smoothie.vitc += i.
-        if (i.vitd != 0): smoothie.vitd += i.
-        if (i.vite != 0): smoothie.vite += i.
-        if (i.vitk1 != 0): smoothie.vitk1 += i.
-
-        if (i.calcium != 0): smoothie.calcium += i.
-        if (i.manganese != 0): smoothie.manganese += i.
-        if (i.potassium != 0): smoothie.potassium += i.
-        if (i.iron != 0): smoothie.iron += i.
-        if (i.phosphorus != 0): smoothie.phosphorus += i.
-        if (i.copper != 0): smoothie.copper += i.
-        if (i.zinc != 0): smoothie.zinc += i.
-        if (i.creatine != 0): smoothie.creatine += i.
-        if (i.taurine != 0): smoothie.taurine += i.
-        if (i.L_glutamine != 0): smoothie.L_glutamine += i.
-
-        if (i.anthocyanin != 0): smoothie.anthocyanin += i.
-        if (i.quercetin != 0): smoothie.quercetin += i.
-        if (i.myricetin != 0): smoothie.myricetin += i.
-        if (i.pelargonidin != 0): smoothie.pelargonidin += i.
-        if (i.procyanidins != 0): smoothie.procyanidins += i.
-        if (i.ellagitannins != 0): smoothie.ellagitannins += i.
-        if (i.ellagic_acid != 0): smoothie.ellagic_acid += 
-
-    blackberries.cals = 32
-    blackberries.sugar =
-    blackberries.protien = 
-    blackberries.carbs = 
-    blackberries.fiber = 
-    blackberries.fat = 
-    blackberries.vitc = 
-    blackberries.vitk1 = 
-    blackberries.manganese = 
-    blackberries.anthocyanin = 
-    blackberries.quercetin = 
-    blackberries.myricetin = 
-
-    blackberries.cals = 32
-    blackberries.sugar =
-    blackberries.protien = 
-    blackberries.carbs = 
-    blackberries.fiber = 
-    blackberries.fat = 
-    blackberries.vitc = 
-    blackberries.vitk1 = 
-    blackberries.manganese = 
-    blackberries.anthocyanin = 
-    blackberries.quercetin = 
-    blackberries.myricetin = 
-
-    blackberries.cals = 32
-    blackberries.sugar =
-    blackberries.protien = 
-    blackberries.carbs = 
-    blackberries.fiber = 
-    blackberries.fat = 
-    blackberries.vitc = 
-    blackberries.vitk1 = 
-    blackberries.manganese = 
-    blackberries.anthocyanin = 
-    blackberries.quercetin = 
-    blackberries.myricetin = 
-
-    blackberries.cals = 32
-    blackberries.sugar =
-    blackberries.protien = 
-    blackberries.carbs = 
-    blackberries.fiber = 
-    blackberries.fat = 
-    blackberries.vitc = 
-    blackberries.vitk1 = 
-    blackberries.manganese = 
-    blackberries.anthocyanin = 
-    blackberries.quercetin = 
-    blackberries.myricetin = 
-
-    blackberries.cals = 32
-    blackberries.sugar =
-    blackberries.protien = 
-    blackberries.carbs = 
-    blackberries.fiber = 
-    blackberries.fat = 
-    blackberries.vitc = 
-    blackberries.vitk1 = 
-    blackberries.manganese = 
-    blackberries.anthocyanin = 
-    blackberries.quercetin = 
-    blackberries.myricetin = 
-'''
-
-
-
 
 
