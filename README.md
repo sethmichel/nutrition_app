@@ -2,10 +2,9 @@
 
 todo: make the table nicer (colors)
 
-Command line program that tracks 67 nutrients. Made because every nutrition tracker either isn't detailed enough, is 90% ads, or both. Official2000CalorieNutritionGoals.json is the actual doctor reccommended amount for an adult male. Custom2000CalorieNutritionGoals.json is custom to me
+Command line program that tracks 67 nutrients. Made because every nutrition tracker is 90% ads, or blocks key functions/tracking. Official2000CalorieNutritionGoals.json is the actual doctor reccommended amount for an adult male. Custom2000CalorieNutritionGoals.json is custom to me (everything is converted to mg)
 
 * You research and add nutrition info for basic foods to nutrients.json. Daily logs are stored in foodLog.csv (manually editing this csv may introduce new characters like \t or \n and mess everything up)
-
 
 * Use the CreateFood() method to combine nutrients.json foods into complex foods like smoothies
 

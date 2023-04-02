@@ -17,6 +17,7 @@
         "cholesterol": ,
         "sodium": ,
         "sugar": ,
+        "erythritol (sweetener)": ,
         "cant_tell_fiber": ,
         "dietary_fiber": ,
         "vit_a": ,
@@ -33,7 +34,7 @@
         "vit_e": ,
         "vit_k": ,
         "potassium": ,
-        "folate": , ,
+        "folate": ,
         "calcium": ,
         "iron": ,
         "iodine": ,
@@ -80,6 +81,7 @@ import json
 import csv
 from datetime import date
 from tabulate import tabulate
+from colorama import Fore, Back, Style
 
 # need to save the names of the foods in an excel, calulcate it each time
 # read, write excel
@@ -90,8 +92,8 @@ def Main():
     userInput = ""
 
     while (userInput != "4"):
-        with open("foodLog.csv", "r") as fRead: 
-            f = open('nutrients.json')
+        with open("Data/foodLog.csv", "r") as fRead: 
+            f = open('Data/nutrients.json')
             jsonDict = json.load(f)
             headers = ["Date", "Foods/Servings"]
             ShowTodaysNutrients(headers, jsonDict)
@@ -115,7 +117,9 @@ def Main():
                     if (userInput == food):
                         AddFoodToExcel(userInput, jsonDict, headers)
                         break
-                
+                else:
+                    print("NOT A LOGGED FOOD")
+            
     f.close();
 
 
@@ -154,14 +158,14 @@ def AddFoodToExcel(foodToAdd, jsonDict, headers):
     foodToAdd = foodToAdd + "(" + servings + ")"
     csvDict = LoadCsvDict(headers)
 
-    with open("foodLog.csv", "w", newline='') as w:
+    with open("Data/foodLog.csv", "w", newline='') as w:
         writer = csv.DictWriter(w, fieldnames = headers)
 
         # add food to csvDict
         if (len(csvDict) > 0 and csvDict[0][headers[0]] == today):
             csvDict[0][headers[1]] = csvDict[0][headers[1]] + '|' + foodToAdd   # 'strawberries (1)'
         else:
-            csvDict.insert(0, {headers[0]: today, headers[1]: foodToAdd})   # doesn't add \n
+            csvDict.insert(0, {headers[0]: today, headers[1]: foodToAdd})       # doesn't add \n
         
         writer.writeheader()
         writer.writerows(csvDict)
@@ -174,13 +178,13 @@ def ShowTodaysNutrients(headers, jsonDict):
     if (csvDict[0][headers[0]] != today):
         return
 
-    f = open('CUSTOMNutritionGoals.json')
+    f = open('Data/CUSTOMNutritionGoals.json')
     nutritonGoalDict = json.load(f)['goals']   # basic dictionary
     nutrientList = list(nutritonGoalDict.keys())
     todaysList = csvDict[0][headers[1]].split('|')   # [blueberries(1), blueberries(1), huel(1)]
     foodList = []
     servingsList = []
-    ConsumedList = []
+    consumedList = []
     goalList = []
     differenceList = []
 
@@ -191,26 +195,55 @@ def ShowTodaysNutrients(headers, jsonDict):
         foodList.append(todaysList[i][:startIndex])
         
     for nutrient in nutrientList:
-        ConsumedList.append(CalcuateFoodTotals(nutrient, foodList, servingsList, jsonDict))
+        consumedList.append(CalcuateFoodTotals(nutrient, foodList, servingsList, jsonDict))
         goalList.append(nutritonGoalDict[nutrient])
-        if (type(ConsumedList[-1]) != str):
-            difference = round(goalList[-1] - ConsumedList[-1], 3)
+        if (type(consumedList[-1]) != str):
+            difference = round(goalList[-1] - consumedList[-1], 3)
             if (difference > 0):
                 differenceList.append(str(difference) + " Left to go")
+                differenceList[-1] = f"{Back.RED}{differenceList[-1]}{Style.RESET_ALL}"
             else:
-                differenceList.append(str(difference) + " over")
+                if (difference == 0):   # it'll say " -0.0 over" otherwise
+                    differenceList.append(str(difference) + " over")
+                else:
+                    differenceList.append(str(difference * -1) + " over")
+                differenceList[-1] = f"{Back.GREEN}{differenceList[-1]}{Style.RESET_ALL}"
         else:
-            differenceList.append(ConsumedList[-1])
-
-    tableDict = {'Nutrient': nutrientList, 'Consumed': ConsumedList, 'Goal': differenceList}
+            differenceList.append(consumedList[-1])
+    
+    listHolder = AppendUnits(nutrientList, consumedList)
+    nutrientList = listHolder[0]
+    consumedList = listHolder[1]
+    
+    tableDict = {'Nutrient': nutrientList, 'Consumed': consumedList, 'Goal': differenceList}
 
     print("\n")
     print(tabulate(tableDict, headers = ['Nutrient', 'Consumed', 'Goal'], tablefmt = 'fancy_grid'))
     print("\n")
 
+
+# converts list of nutrients to include units
+def AppendUnits(nutrientList, consumedList):
+    for i in range(0, len(nutrientList)):
+        if (nutrientList[i] in gNutrients):
+            nutrientList[i] = nutrientList[i] + " g"
+            consumedList[i] = str(consumedList[i]) + " g"
+        elif (nutrientList[i] in mgNutrients):
+            nutrientList[i] = nutrientList[i] + " mg"
+            consumedList[i] = str(consumedList[i]) + " mg"
+        elif (nutrientList[i] in mcgNutrients):
+            nutrientList[i] = nutrientList[i] + " mcg"
+            consumedList[i] = str(consumedList[i]) + " mcg"
+        elif (nutrientList[i] in mnNutrients):
+            nutrientList[i] = nutrientList[i] + " mn"
+            consumedList[i] = str(consumedList[i]) + " mn"
+
+    return [nutrientList, consumedList]
+
+
 def LoadCsvDict(headers):
     csvDict = []
-    with open('foodLog.csv', "r") as r:
+    with open('Data/foodLog.csv', "r") as r:
         reader = csv.DictReader(r)
 
         # load csv data
@@ -219,37 +252,10 @@ def LoadCsvDict(headers):
 
     return csvDict
 
+
 def GetTodaysDate():
     today = str(date.today()).split("-")                  # 2019-12-11
     return (today[1] + "/" + today[2] + "/" + today[0])   # 12/11/2019
-
-def writeTest():
-    with open("foodLog.csv", "w", newline='') as w:
-        writer = csv.writer(w)
-
-        writer.writerow(["Date", "Foods/Servings"])
-        writer.writerow(['11/1/2022', 'strawberries (1)'])
-        writer.writerow(["10/31/2022", 'blueberries (1)'])
-        w.close()
-
-
-# because an apple is like 180g but reviewed as 100g. This speeds things up
-# TO CALL: call it before main, speparate from the program
-def WeightMutliplier(food, multiplier):
-    with open("foodLog.csv", "r") as fRead: 
-        f = open('nutrients.json')
-        jsonDict = json.load(f)
-
-    keyList = list(jsonDict[food].keys())
-
-    for key in keyList:
-        if (type(jsonDict[food][key]) != str):
-            jsonDict[food][key] = round(jsonDict[food][key] * multiplier, 6)
-
-    jsonObj = json.dumps(jsonDict, indent = 4)
- 
-    with open("nutrients.json", "w") as outfile:
-        outfile.write(jsonObj)
 
 
 # sum ingredients into new food, save to json
@@ -258,7 +264,7 @@ def CreateFood(jsonDict):
     ingreList = (input("Enter ingredients separated by a comma (no servings): blueberries,\n")).split(",")
     servingList = (input("Enter servings for those foods separated by a ,\n")).split(",")
 
-    fgoal = open('CUSTOMNutritionGoals.json')
+    fgoal = open('Data/CUSTOMNutritionGoals.json')
     nutrientList = list(json.load(fgoal)['goals'].keys())
 
     # calculate, serving size is "1 thing"
@@ -268,14 +274,19 @@ def CreateFood(jsonDict):
 
     jsonObj = json.dumps(jsonDict, indent = 4)
  
-    with open("nutrients.json", "w") as outfile:
+    with open("Data/nutrients.json", "w") as outfile:
         outfile.write(jsonObj)
 
     # reload jsonDict
-    f = open('nutrients.json')
+    f = open('Data/nutrients.json')
     return json.load(f)
 
+# globals
+# antioxidents are mg. I write them simply as "+" so don't include them in these lists
+gNutrients = ["protein", "carbs", "total_fat", "saturated_fat", "trans_fat", "polyunsaturated_fat", "monounsaturated_fat", "sugar", "erythritol (sweetener)", "cant_tell_fiber", "dietary_fiber", "vit_b7 (biotin)", "creatine", "L_glutamine"]
+mgNutrients = ["cholesterol", "sodium", "vit_b1 (thiamine)", "vit_b2 (riboflavin)", "vit_b4 (niacin)", "vit_b5 (pantothenic_acid)", "vit_b6 (pyridoxine)", "vit_b12 (cobalamin)", "vit_c", "vit_e", "potassium", "calcium", "iron", "magnesium", "manganese", "zinc", "copper", "phosphorus", "choline", "chloride", "lycopene", "phenylalanine (EAA)", "valine (EAA)", "threonine (EAA)", "tryptophan (EAA)", "methionine (EAA)", "leucine (EAA)", "isoleucine (EAA)", "lysine (EAA)", "histidine (EAA)", "anthocyanin (antioxidant)", "quercetin (antioxidant)", "myricetin (antioxidant)", "pelargonidin (antioxidant)", "procyanidins (antioxidant)", "ellagitannins (antioxidant)", "ellagic_acid (antioxidant)", "taurine", "omega-3", "omega-6", "medium-chain triglycerides", "lutein + zeaxanthin"]
+mcgNutrients = ["vit_a", "vit_b9 (folic acid)", "vit_b12 (cobalamin)", "vit_d", "vit_k", "folate", "iodine", "selenium", "molybdenum", "chromium"]
+mnNutrients = ["bacillus coagulans"]
+# end
 
-#writeTest()
-#WeightMutliplier("apple", 1.7)
 Main()
