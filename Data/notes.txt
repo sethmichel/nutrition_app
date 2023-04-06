@@ -15,3 +15,8 @@ specific servings
 -yellow squash: 115g (Summer squash, raw, yellow)
 -zucchini: very hard to find
 -chia seeds (3 tbsp = 30g) 2 tbsp = "daily requirement" of omega 3. But it's ALA which isn't as good as from fish
+
+
+
+bugs:
+enter servings on some random food, then don't enter servings on the food you click, it accepts this because it only checks if the parent grid has the ids "servings"
