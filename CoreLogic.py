@@ -83,8 +83,7 @@ from datetime import date
 from tabulate import tabulate
 from colorama import Fore, Back, Style
 
-# need to save the names of the foods in an excel, calulcate it each time
-# read, write excel
+
 # ask user what they ate, ignore breakfast, lunch, dinner specification, just what they ate that day
 # create a meal: enter the foods and amounts -> it'll add to the json
 
@@ -95,27 +94,25 @@ def Main():
         with open("Data/foodLog.csv", "r") as fRead: 
             f = open('Data/nutrients.json')
             jsonDict = json.load(f)
-            headers = ["Date", "Foods/Servings"]
-            ShowTodaysNutrients(headers, jsonDict)
+            ShowTodaysNutrients(jsonDict)
+            ListFoods()
+            print("\n")
 
-            userInput = input("1: see list of foods\n" +
-                            "2: create food\n" +
-                            "3: delete an excel food from today\n" +
-                            "4: quit\n" +
+            userInput = input("1: Create food\n" +
+                            "2: Delete an excel food from today\n" +
+                            "3: Quit\n" +
                             "OR type a food to add it to today\n")
 
             if (userInput == "1"):
-                ListFoods()
-            elif (userInput == "2"):
                 jsonDict = CreateFood(jsonDict)
-            elif (userInput == "3"):
+            elif (userInput == "2"):
                 DeleteExcelEntry(userInput)
-            elif (userInput =="4"):
+            elif (userInput =="3"):
                 break
             else:
                 for food in jsonDict.keys():
                     if (userInput == food):
-                        AddFoodToExcel(userInput, jsonDict, headers)
+                        AddFoodToExcel(userInput, jsonDict)
                         break
                 else:
                     print("NOT A LOGGED FOOD")
@@ -152,7 +149,7 @@ def CalcuateFoodTotals(nutrient, listOfFoods, servingsList, jsonDict):
 
 
 # date, list of foods (servings) with , delimiter
-def AddFoodToExcel(foodToAdd, jsonDict, headers):
+def AddFoodToExcel(foodToAdd, jsonDict):
     today = GetTodaysDate()   # 12/11/2019
     servings = input("How many servings? ")
     foodToAdd = foodToAdd + "(" + servings + ")"
@@ -172,11 +169,9 @@ def AddFoodToExcel(foodToAdd, jsonDict, headers):
 
 
 # date, list of foods (servings) with , delimiter
-def ShowTodaysNutrients(headers, jsonDict):
-    csvDict = LoadCsvDict(headers)
+def ShowTodaysNutrients(jsonDict):
+    csvDict = LoadCsvDict()
     today = GetTodaysDate()
-    if (csvDict[0][headers[0]] != today):
-        return
 
     f = open('Data/CUSTOMNutritionGoals.json')
     nutritonGoalDict = json.load(f)['goals']   # basic dictionary
@@ -201,25 +196,24 @@ def ShowTodaysNutrients(headers, jsonDict):
             difference = round(goalList[-1] - consumedList[-1], 3)
             if (difference > 0):
                 differenceList.append(str(difference) + " Left to go")
-                differenceList[-1] = f"{Back.RED}{differenceList[-1]}{Style.RESET_ALL}"
             else:
                 if (difference == 0):   # it'll say " -0.0 over" otherwise
                     differenceList.append(str(difference) + " over")
                 else:
                     differenceList.append(str(difference * -1) + " over")
-                differenceList[-1] = f"{Back.GREEN}{differenceList[-1]}{Style.RESET_ALL}"
         else:
             differenceList.append(consumedList[-1])
     
     listHolder = AppendUnits(nutrientList, consumedList)
     nutrientList = listHolder[0]
     consumedList = listHolder[1]
-    
-    tableDict = {'Nutrient': nutrientList, 'Consumed': consumedList, 'Goal': differenceList}
 
-    print("\n")
-    print(tabulate(tableDict, headers = ['Nutrient', 'Consumed', 'Goal'], tablefmt = 'fancy_grid'))
-    print("\n")
+    return [nutrientList, consumedList, differenceList]
+    
+    #tableDict = {'Nutrient': nutrientList, 'Consumed': consumedList, 'Goal': differenceList}
+
+    #print("\n")
+    #print(tabulate(tableDict, headers = ['Nutrient', 'Consumed', 'Goal'], tablefmt = 'fancy_grid'))
 
 
 # converts list of nutrients to include units
@@ -241,7 +235,7 @@ def AppendUnits(nutrientList, consumedList):
     return [nutrientList, consumedList]
 
 
-def LoadCsvDict(headers):
+def LoadCsvDict():
     csvDict = []
     with open('Data/foodLog.csv', "r") as r:
         reader = csv.DictReader(r)
@@ -257,6 +251,19 @@ def GetTodaysDate():
     today = str(date.today()).split("-")                  # 2019-12-11
     return (today[1] + "/" + today[2] + "/" + today[0])   # 12/11/2019
 
+
+def ListFoods():
+    today = GetTodaysDate()
+    csvDict = LoadCsvDict()
+    with open("Data/foodLog.csv", "r", newline='') as r:
+        reader = csv.DictReader(r, fieldnames = headers)
+        for row in reader:
+            if (row["Date"] == today):
+                holder = row["Foods/Servings"]
+                holder = holder.replace("|", ", ")
+                print(holder)
+
+        
 
 # sum ingredients into new food, save to json
 def CreateFood(jsonDict):
@@ -287,6 +294,8 @@ gNutrients = ["protein", "carbs", "total_fat", "saturated_fat", "trans_fat", "po
 mgNutrients = ["cholesterol", "sodium", "vit_b1 (thiamine)", "vit_b2 (riboflavin)", "vit_b4 (niacin)", "vit_b5 (pantothenic_acid)", "vit_b6 (pyridoxine)", "vit_b12 (cobalamin)", "vit_c", "vit_e", "potassium", "calcium", "iron", "magnesium", "manganese", "zinc", "copper", "phosphorus", "choline", "chloride", "lycopene", "phenylalanine (EAA)", "valine (EAA)", "threonine (EAA)", "tryptophan (EAA)", "methionine (EAA)", "leucine (EAA)", "isoleucine (EAA)", "lysine (EAA)", "histidine (EAA)", "anthocyanin (antioxidant)", "quercetin (antioxidant)", "myricetin (antioxidant)", "pelargonidin (antioxidant)", "procyanidins (antioxidant)", "ellagitannins (antioxidant)", "ellagic_acid (antioxidant)", "taurine", "omega-3", "omega-6", "medium-chain triglycerides", "lutein + zeaxanthin"]
 mcgNutrients = ["vit_a", "vit_b9 (folic acid)", "vit_b12 (cobalamin)", "vit_d", "vit_k", "folate", "iodine", "selenium", "molybdenum", "chromium"]
 mnNutrients = ["bacillus coagulans"]
+
+headers = ["Date", "Foods/Servings"]
 # end
 
-Main()
+#Main()
