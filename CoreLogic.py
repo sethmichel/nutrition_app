@@ -3,85 +3,13 @@
 # everything is in grams or "thing"
 
 
-''' json template (make sure it's in mg)
-{"name": {
-        "serving size": ,
-        "calories": ,
-        "protein": ,
-        "carbs": ,
-        "total_fat": ,
-        "saturated_fat": ,
-        "trans_fat": ,
-        "polyunsaturated_fat": ,
-        "monounsaturated_fat": ,
-        "cholesterol": ,
-        "sodium": ,
-        "sugar": ,
-        "erythritol (sweetener)": ,
-        "cant_tell_fiber": ,
-        "dietary_fiber": ,
-        "vit_a": ,
-        "vit_b1 (thiamine)": ,
-        "vit_b2 (riboflavin)": ,
-        "vit_b4 (niacin)": ,
-        "vit_b5 (pantothenic_acid)": ,
-        "vit_b6 (pyridoxine)": ,
-        "vit_b7 (biotin)": ,
-        "vit_b9 (folic acid)": ,
-        "vit_b12 (cobalamin)": ,
-        "vit_c": ,
-        "vit_d": ,
-        "vit_e": ,
-        "vit_k": ,
-        "potassium": ,
-        "folate": ,
-        "calcium": ,
-        "iron": ,
-        "iodine": ,
-        "magnesium": ,
-        "manganese": ,
-        "zinc": ,
-        "selenium": ,
-        "copper": ,
-        "phosphorus": ,
-        "molybdenum": ,
-        "chromium": ,
-        "choline": ,
-        "chloride": ,
-        "lycopene": ,
-        "phenylalanine (EAA)": ,
-        "valine (EAA)": ,
-        "threonine (EAA)": ,
-        "tryptophan (EAA)": ,
-        "methionine (EAA)": ,
-        "leucine (EAA)": ,
-        "isoleucine (EAA)": ,
-        "lysine (EAA)": ,
-        "histidine (EAA)": ,
-        "anthocyanin (antioxidant)": "",
-        "quercetin (antioxidant)": "",
-        "myricetin (antioxidant)": "",
-        "pelargonidin (antioxidant)": "",
-        "procyanidins (antioxidant)": "",
-        "ellagitannins (antioxidant)": "",
-        "ellagic_acid (antioxidant)": "",
-        "creatine": ,
-        "taurine": ,
-        "L_glutamine": ,
-        "omega-3": ,
-        "omega-6": ,
-        "medium-chain triglycerides": ,
-        "lutein + zeaxanthin": ,
-        "bacillus coagulans": ""
-    }
-}
-'''
-
 import json
 import csv
 from datetime import date
 from tabulate import tabulate
 from colorama import Fore, Back, Style
+
+import HelperFunctions
 
 # need to save the names of the foods in an excel, calulcate it each time
 # read, write excel
@@ -97,12 +25,14 @@ def Main():
             jsonDict = json.load(f)
             headers = ["Date", "Foods/Servings"]
             ShowTodaysNutrients(headers, jsonDict)
+            ShowTodaysFoods(headers, jsonDict)
+
 
             userInput = input("1: see list of foods\n" +
-                            "2: create food\n" +
-                            "3: delete an excel food from today\n" +
-                            "4: quit\n" +
-                            "OR type a food to add it to today\n")
+                              "2: create food\n" +
+                              "3: delete an excel food from today\n" +
+                              "4: quit\n" +
+                              "OR type a food to add it to today\n")
 
             if (userInput == "1"):
                 ListFoods()
@@ -219,22 +149,21 @@ def ShowTodaysNutrients(headers, jsonDict):
 
     print("\n")
     print(tabulate(tableDict, headers = ['Nutrient', 'Consumed', 'Goal'], tablefmt = 'fancy_grid'))
-    print("\n")
 
 
 # converts list of nutrients to include units
 def AppendUnits(nutrientList, consumedList):
     for i in range(0, len(nutrientList)):
-        if (nutrientList[i] in gNutrients):
+        if (nutrientList[i] in HelperFunctions.gNutrients):
             nutrientList[i] = nutrientList[i] + " g"
             consumedList[i] = str(consumedList[i]) + " g"
-        elif (nutrientList[i] in mgNutrients):
+        elif (nutrientList[i] in HelperFunctions.mgNutrients):
             nutrientList[i] = nutrientList[i] + " mg"
             consumedList[i] = str(consumedList[i]) + " mg"
-        elif (nutrientList[i] in mcgNutrients):
+        elif (nutrientList[i] in HelperFunctions.mcgNutrients):
             nutrientList[i] = nutrientList[i] + " mcg"
             consumedList[i] = str(consumedList[i]) + " mcg"
-        elif (nutrientList[i] in mnNutrients):
+        elif (nutrientList[i] in HelperFunctions.mnNutrients):
             nutrientList[i] = nutrientList[i] + " mn"
             consumedList[i] = str(consumedList[i]) + " mn"
 
@@ -260,17 +189,43 @@ def GetTodaysDate():
 
 # sum ingredients into new food, save to json
 def CreateFood(jsonDict):
-    newFood = input("Enter new meal name: ")
-    ingreList = (input("Enter ingredients separated by a comma (no servings): blueberries,\n")).split(",")
-    servingList = (input("Enter servings for those foods separated by a ,\n")).split(",")
+    newFoodName = input("Enter new meal name: ")
+    newFoodServingSize = input("Enter the serving size of this new food: ")
+    ingreList = (input("Enter ingredients separated by a comma (no servings): ")).split(",")
+    servingList = (input("Enter servings for those foods separated by a comma: ")).split(",")
 
-    fgoal = open('Data/CUSTOMNutritionGoals.json')
-    nutrientList = list(json.load(fgoal)['goals'].keys())
+    # remove leading whitespace from lists
+    for i in range(0, len(ingreList)):
+        ingreList[i] = ingreList[i].lstrip(" ")
+        servingList[i] = servingList[i].lstrip(" ")
 
-    # calculate, serving size is "1 thing"
-    jsonDict[newFood] = {"serving size": "1 thing"}
-    for nutrient in nutrientList:
-        jsonDict[newFood][nutrient] = CalcuateFoodTotals(nutrient, ingreList, servingList, jsonDict) 
+    f = open('Data/nutritionTemplate.json')
+    jsonDict[newFoodName] = (json.load(f))["name"]
+
+    jsonDict[newFoodName]["_is this a recipes bool"] = "t"
+    jsonDict[newFoodName]["_ingredients"] = ingreList
+    jsonDict[newFoodName]["_ingreServingSizes"] = servingList
+    jsonDict[newFoodName]["serving size"] = newFoodServingSize
+
+    for i in range(0, len(ingreList)):
+        food = ingreList[i]
+        for nutrient in jsonDict[food]:
+            if (nutrient not in ["_is this a recipes bool", "_ingredients", "_ingreServingSizes", "serving size"]):
+                if (nutrient == "_comments"):
+                    if (jsonDict[newFoodName]["_comments"] == ""):
+                        jsonDict[newFoodName]["_comments"] = jsonDict[food]["_comments"]
+                    else:
+                        jsonDict[newFoodName]["_comments"] = jsonDict[newFoodName]["_comments"] + ", " + jsonDict[food]["_comments"]
+
+                # str's will either say something or be a + if I can't figure out its details
+                elif (type(jsonDict[newFoodName][nutrient]) != str):
+                    jsonDict[newFoodName][nutrient] += (jsonDict[food][nutrient] * float(servingList[i]))
+
+                elif (type(jsonDict[newFoodName][nutrient]) == str):
+                    if (jsonDict[newFoodName][nutrient] == ""):
+                        jsonDict[newFoodName][nutrient] =  jsonDict[food][nutrient]
+                    elif (jsonDict[food][nutrient] != ""):
+                        jsonDict[newFoodName][nutrient] =  jsonDict[newFoodName][nutrient] + ", " + jsonDict[food][nutrient]
 
     jsonObj = json.dumps(jsonDict, indent = 4)
  
@@ -281,12 +236,19 @@ def CreateFood(jsonDict):
     f = open('Data/nutrients.json')
     return json.load(f)
 
-# globals
-# antioxidents are mg. I write them simply as "+" so don't include them in these lists
-gNutrients = ["protein", "carbs", "total_fat", "saturated_fat", "trans_fat", "polyunsaturated_fat", "monounsaturated_fat", "sugar", "erythritol (sweetener)", "cant_tell_fiber", "dietary_fiber", "vit_b7 (biotin)", "creatine", "L_glutamine"]
-mgNutrients = ["cholesterol", "sodium", "vit_b1 (thiamine)", "vit_b2 (riboflavin)", "vit_b4 (niacin)", "vit_b5 (pantothenic_acid)", "vit_b6 (pyridoxine)", "vit_b12 (cobalamin)", "vit_c", "vit_e", "potassium", "calcium", "iron", "magnesium", "manganese", "zinc", "copper", "phosphorus", "choline", "chloride", "lycopene", "phenylalanine (EAA)", "valine (EAA)", "threonine (EAA)", "tryptophan (EAA)", "methionine (EAA)", "leucine (EAA)", "isoleucine (EAA)", "lysine (EAA)", "histidine (EAA)", "anthocyanin (antioxidant)", "quercetin (antioxidant)", "myricetin (antioxidant)", "pelargonidin (antioxidant)", "procyanidins (antioxidant)", "ellagitannins (antioxidant)", "ellagic_acid (antioxidant)", "taurine", "omega-3", "omega-6", "medium-chain triglycerides", "lutein + zeaxanthin"]
-mcgNutrients = ["vit_a", "vit_b9 (folic acid)", "vit_b12 (cobalamin)", "vit_d", "vit_k", "folate", "iodine", "selenium", "molybdenum", "chromium"]
-mnNutrients = ["bacillus coagulans"]
-# end
+
+# list all foods eaten today under the table
+def ShowTodaysFoods(headers, jsonDict):
+    csvDict = LoadCsvDict(headers)
+    today = GetTodaysDate()
+    if (csvDict[0][headers[0]] != today):
+        return
+
+    print(str(csvDict[0][headers[1]].split('|'))[2:-2])   # [blueberries(1), blueberries(1), huel(1)]
+    print("\n")
+
+
+
+
 
 Main()

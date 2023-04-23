@@ -15,3 +15,11 @@ specific servings
 -yellow squash: 115g (Summer squash, raw, yellow)
 -zucchini: very hard to find
 -chia seeds (3 tbsp = 30g) 2 tbsp = "daily requirement" of omega 3. But it's ALA which isn't as good as from fish
+
+
+todo:
+-reorganize nution json so it's like nutrion labels
+-label how much healthy fats something has
+-move "live & active cultures" to the top
+-I think pobiotics are cutlures but not all cultures are probiotics. currently they're both in live and active cultures
+-another problem is in CreateFood(), I multiply the nutrition facts by the serving size but this doesn't work for stings. So I could eat 0.1 of something but get the full string values

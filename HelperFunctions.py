@@ -22,28 +22,28 @@ def WeightMutliplier(food, multiplier):
 
 
 # maybe I add a food with erythritol and I want to add that. This adds a "erythritol: 0," entry
-# > to every food entry PLEASE ALSO ADD IT TO THE TEMPLATE
+# > to every food entry PLEASE ALSO ADD IT TO THE TEMPLATE & NUTIRNET UNIT LIST AT BOTTOM OF FILES
 # pm: insertAfter: nutrient that goes right before it | insertThis: nutrient to add
 def EditNutrientJson(insertAfter, insertThis):
     holderDict = {}
-    file = 'backups/nutrientsBACKUP.json'
-    #'Data/nutrients.json'
-    f = open(file)
-    foodDict = json.load(f)
+    fileHolder = ['Data/nutrients.json', 'backups/nutrientsBACKUP.json', 'Data/nutritionTemplate.json']
 
-    # copy contents/new nutrient to holder dictionary, replace original with holder
-    for food in list(foodDict.keys()):
-        for nutrient in foodDict[food]:
-            holderDict[nutrient] = foodDict[food][nutrient]
-            if (nutrient == insertAfter):
-                holderDict[insertThis] = 0
-        foodDict[food] = holderDict
-        holderDict = {}
+    for file in fileHolder:
+        f = open(file)
+        foodDict = json.load(f)
+        # copy contents/new nutrient to holder dictionary, replace original with holder
+        for food in list(foodDict.keys()):
+            for nutrient in foodDict[food]:
+                holderDict[nutrient] = foodDict[food][nutrient]
+                if (nutrient == insertAfter):
+                    holderDict[insertThis] = 0
+            foodDict[food] = holderDict
+            holderDict = {}
 
-    if (FileConfirmationText(file) == 'y'):
-        jsonObj = json.dumps(foodDict, indent = 4)
-        with open(file, "w") as outfile:
-            outfile.write(jsonObj)
+        if (FileConfirmationText(file) == 'y'):
+            jsonObj = json.dumps(foodDict, indent = 4)
+            with open(file, "w") as outfile:
+                outfile.write(jsonObj)
 
 
 
@@ -94,12 +94,12 @@ def FileConfirmationText(file):
 
 # antioxidents are mg. I write them simply as "+" so don't include them in these lists
 gNutrients = ["protein", "carbs", "total_fat", "saturated_fat", "trans_fat", "polyunsaturated_fat", "monounsaturated_fat", "sugar", "erythritol (sweetener)", "cant_tell_fiber", "dietary_fiber", "vit_b7 (biotin)", "creatine", "L_glutamine"]
-mgNutrients = ["cholesterol", "sodium", "vit_b1 (thiamine)", "vit_b2 (riboflavin)", "vit_b4 (niacin)", "vit_b5 (pantothenic_acid)", "vit_b6 (pyridoxine)", "vit_b12 (cobalamin)", "vit_c", "vit_e", "potassium", "calcium", "iron", "magnesium", "manganese", "zinc", "copper", "phosphorus", "choline", "chloride", "lycopene", "phenylalanine (EAA)", "valine (EAA)", "threonine (EAA)", "tryptophan (EAA)", "methionine (EAA)", "leucine (EAA)", "taurine", "omega-3", "omega-6", "medium-chain triglycerides", "lutein + zeaxanthin"]
+mgNutrients = ["cholesterol", "sodium", "vit_b1 (thiamine)", "vit_b2 (riboflavin)", "vit_b4 (niacin)", "vit_b5 (pantothenic_acid)", "vit_b6 (pyridoxine)", "vit_b12 (cobalamin)", "vit_c", "vit_e", "potassium", "calcium", "iron", "magnesium", "manganese", "zinc", "copper", "phosphorus", "choline", "chloride", "lycopene", "phenylalanine (EAA)", "valine (EAA)", "threonine (EAA)", "tryptophan (EAA)", "methionine (EAA)", "leucine (EAA)", "taurine", "omega-3", "omega-6", "medium-chain triglycerides", "lutein + zeaxanthin", "alanine (antioxidant)", "arginine (antioxidant)", "aspartic acid (antioxidant)", "cysteine (antioxidant)", "glutamic acid (antioxidant)", "glycine (antioxidant)", "proline (antioxidant)", "serine (antioxidant)", "tyrosine (antioxidant)", "ionic trace minerals (electrolyte)"]
 mcgNutrients = ["vit_a", "vit_b9 (folic acid)", "vit_b12 (cobalamin)", "vit_d", "vit_k", "folate", "iodine", "selenium", "molybdenum", "chromium"]
 mnNutrients = ["bacillus coagulans"]
 
-
-#EditNutrientJson("sugar", "erythritol (sweetener)")
+#EditNutrientJson("_ingredients", "_ingreServingSizes")
 #WeightMutliplier("apple", 1.7)
-ConvertAllNutrients()
+#ConvertAllNutrients()
 #WriteTest()
+
