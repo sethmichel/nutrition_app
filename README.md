@@ -1,6 +1,6 @@
 # nutrition_app
 
-todo: make the table nicer (colors)
+todo: make the table nicer (colors), fix units (had to normalize them which is why some are in the thousands)
 
 Command line program that tracks 67 nutrients. Made because every nutrition tracker is 90% ads, or blocks key functions/tracking. Official2000CalorieNutritionGoals.json is the actual doctor reccommended amount for an adult male. Custom2000CalorieNutritionGoals.json is custom to me (everything is converted to mg)
 
